@@ -58,6 +58,13 @@ struct arena_page {
     return s;
   }
 
+  mystr alloc_null_term_str(mystr src) {
+    mystr ntermd = alloc_str(src.len + 1);
+    strncpy(ntermd.data,src.data, ntermd.len - 1);
+    ntermd.data[ntermd.len - 1] = '\0';
+    return ntermd;
+  }
+
   void discard_head() {
     first_unused = current_head;
   }
@@ -145,6 +152,14 @@ struct arena {
     discard_head();
     dest->data = NULL;
     dest->len = 0;
+  }
+
+  mystr alloc_null_term_str(mystr src) {
+    arena_page* cur_page = &pages.back();
+    if (cur_page->first_unused + src.len + 1 >= cur_page->len) {
+      cur_page = new_page();
+    }
+    return cur_page->alloc_null_term_str(src);
   }
 
   void append_char(mystr* dest, char c) {

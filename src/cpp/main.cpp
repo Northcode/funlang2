@@ -33,7 +33,8 @@ int main() {
   // cout << "discarded: " << teststr << endl;
   // cout << "new alloc: " << test2 << endl;
 
-  stringstream ss{"this is a test 2 + 4; *a = 50;"};
+  // stringstream ss{"this is a test 2h + 4; *a = 50;"};
+  stringstream ss{"45 hello 3.14159"};
 
   parser p{&arr,ss};
 

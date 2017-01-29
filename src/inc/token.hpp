@@ -15,10 +15,6 @@ struct token {
 
   token_types type;
   
-  token(token_types type) {
-    this->type = type;
-  }
-
   long filepos;
 
   union {

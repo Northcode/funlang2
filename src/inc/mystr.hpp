@@ -2,6 +2,7 @@
 #define mystr_H
 
 #include <string>
+#include <iostream>
 #include "string.h"
 #include "stdio.h"
 
@@ -14,7 +15,7 @@ struct mystr {
   
   friend std::ostream& operator<<(std::ostream& stream, const mystr& str) {
     for (size_t i = 0; i < str.len; i++) {
-      stream << str.data[i];
+      stream << (char)str.data[i];
     }
     return stream;
   }

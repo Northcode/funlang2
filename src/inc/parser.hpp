@@ -4,30 +4,49 @@
 #include <vector>
 #include <sstream>
 #include <fstream>
+#include <functional>
 
 #include "mystr.hpp"
 #include "token.hpp"
 #include "string_arena.hpp"
 
-enum PARSER_STATE {
+enum LEX_STATE {
+  Linit = 0,
+  Ldigit,
+  Ldecimal,
+  Lword,
+  Ldone,
+};
 
-  INITIAL
-  
+enum PARSER_STATE {
+  Pinit= 0,
+};
+
+struct lexer_data {
+  int i;
+
+  mystr current_str;
+
+  token_types ttype;
+
+  char& c() { return (char&)i; }
 };
 
 struct parser {
 
-  PARSER_STATE state;
+  LEX_STATE lstate;
+  PARSER_STATE pstate;
+
+  lexer_data ldata;
 
   std::vector<token> tokens;
 
   std::istream& inputstream;
   arena* _arena;
 
-  mystr current_str;
-
   parser(arena* arena, std::istream& inputstream) : inputstream(inputstream),_arena(arena) {
-    state = INITIAL;
+    lstate = Linit;
+    pstate = Pinit;
     tokens = std::vector<token>();
     tokens.reserve(100); // @TODO: figure out a good number for this
   }
@@ -37,7 +56,8 @@ struct parser {
   void scan_tokens();
 
   void scan_token();
-  char next_char();
+  void scan_char();
+  char& getc();
 };
 
 #endif
