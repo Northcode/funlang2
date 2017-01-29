@@ -118,6 +118,11 @@ struct arena {
     }
   }
 
+  arena_page* new_page() {
+    pages.emplace_back();
+    return &pages.back();
+  }
+
   mystr alloc_str(size_t size) {
     arena_page* cur_page = &pages.back();
     if(cur_page->first_unused + size >= cur_page->len) {
@@ -126,11 +131,6 @@ struct arena {
     return cur_page->alloc_str(size);
   }
 
-  arena_page* new_page() {
-    pages.emplace_back();
-    return &pages.back();
-  }
-  
   mystr alloc_str_from(const char* from) {
     mystr s = alloc_str(strlen(from));
     strcpy(s.data, from);

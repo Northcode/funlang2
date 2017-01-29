@@ -7,6 +7,7 @@
 
 #include "mystr.hpp"
 #include "token.hpp"
+#include "string_arena.hpp"
 
 enum PARSER_STATE {
 
@@ -21,18 +22,21 @@ struct parser {
   std::vector<token> tokens;
 
   std::istream& inputstream;
+  arena* _arena;
 
   mystr current_str;
 
-  parser(std::istream& inputstream) : inputstream(inputstream) {
+  parser(arena* arena, std::istream& inputstream) : inputstream(inputstream),_arena(arena) {
     state = INITIAL;
     tokens = std::vector<token>();
+    tokens.reserve(100); // @TODO: figure out a good number for this
   }
-  
-  void scan_token();
 
-  void scan_char();
+  void print_tokens();
   
+  void scan_tokens();
+
+  void scan_token();
   char next_char();
 };
 

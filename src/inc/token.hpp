@@ -4,7 +4,7 @@
 #include "mystr.hpp"
 
 enum token_types {
-  Tint,
+  Tint = 0,
   Tdecimal,
   Tchar,
   Tword,
