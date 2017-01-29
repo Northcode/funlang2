@@ -101,6 +101,7 @@ void consume_char(parser* p) {
 
   mystr& str = p->ldata.current_str;
 
+
   p->ldata.ttype = Tstr; // set token type number
 
   p->_arena->append_char(&str, p->ldata.c());
@@ -121,19 +122,24 @@ void consume_done(parser* p) {
   t.type = p->ldata.ttype;
 
   switch (p->ldata.ttype) {
+
   case Tint: {
     p->_arena->append_char(&p->ldata.current_str, '\0');
     
     t.data_int = atoi(p->ldata.current_str.data);
 
-    if (p->_arena->is_head(p->ldata.current_str)) p->_arena->delete_head(&p->ldata.current_str);
+    if (p->_arena->is_head(p->ldata.current_str))
+      p->_arena->delete_head(&p->ldata.current_str);
+
   } break;
   case Tdecimal: {
     p->_arena->append_char(&p->ldata.current_str, '\0');
 
     t.data_decimal = atof(p->ldata.current_str.data);
 
-    if (p->_arena->is_head(p->ldata.current_str)) p->_arena->delete_head(&p->ldata.current_str);
+    if (p->_arena->is_head(p->ldata.current_str))
+      p->_arena->delete_head(&p->ldata.current_str);
+
   } break;
   case Tstr: {
     t.data_str = p->ldata.current_str;
@@ -141,8 +147,11 @@ void consume_done(parser* p) {
   case Tchar: {
     t.data_char = p->ldata.current_str.data[0];
 
-    if (p->_arena->is_head(p->ldata.current_str)) p->_arena->delete_head(&p->ldata.current_str);
+    if (p->_arena->is_head(p->ldata.current_str))
+      p->_arena->delete_head(&p->ldata.current_str);
+    
   } break;
+
   };
 
   p->tokens.push_back(t);
