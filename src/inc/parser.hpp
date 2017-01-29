@@ -21,6 +21,8 @@ enum LEX_STATE {
   Ldquote,
   Lstr,
   Lesq_str,
+
+  Lplus,
 };
 
 enum PARSER_STATE {

@@ -22,6 +22,8 @@ void consume_init(parser* p) {
     p->lstate = Ldigit;
   } else if (c == '\'') {
     p->lstate = Lsquote;
+  } else if (c == '+'){
+    p->lstate = Lplus;
   } else if (c == '\"') {
     p->lstate = Ldquote;
   } else if (isspace(c)) {
@@ -180,6 +182,24 @@ void consume_esq_str(parser* p) {
   p->lstate = Lstr;
 }
 
+void consume_plus(parser* p) {
+  assert(p->lstate == Lplus);
+
+  mystr& str = p->ldata.current_str;
+
+  p->ldata.ttype = Tshort_bin_op;
+
+  p->_arena->append_char(&str, p->ldata.c());
+  
+  READ_C();
+
+  if (c == '=') {
+
+  } else {
+    p->lstate = Ldone;
+  }
+}
+
 void consume_done(parser* p) {
   assert(p->lstate == Ldone);
 
@@ -219,7 +239,13 @@ void consume_done(parser* p) {
       p->_arena->delete_head(&p->ldata.current_str);
     
   } break;
+  case Tshort_bin_op: {
+    t.data_char = p->ldata.current_str.data[0];
 
+    if (p->_arena->is_head(p->ldata.current_str))
+      p->_arena->delete_head(&p->ldata.current_str);
+    
+  } break;
   };
 
   p->tokens.push_back(t);
@@ -238,6 +264,7 @@ state_proc jump_table[] = {
   { "dquote", &consume_dquote },
   { "str", &consume_str },
   { "esq_str", &consume_esq_str },
+  { "plus", &consume_plus },
 };
 
 char& parser::getc() {
@@ -274,8 +301,6 @@ void parser::print_tokens() {
     cout << "type: " << tok.type << endl << "data: ";
     switch (tok.type) {
     case Tstr:
-      cout << tok.data_str;
-      break;
     case Tword:
       cout << tok.data_str;
       break;
@@ -283,6 +308,7 @@ void parser::print_tokens() {
       cout << tok.data_int;
       break;
     case Tchar:
+    case Tshort_bin_op:
       cout << tok.data_char;
       break;
     case Tdecimal:

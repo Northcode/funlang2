@@ -9,6 +9,15 @@ enum token_types {
   Tchar,
   Tword,
   Tstr,
+
+  Tpar_open,
+  Tpar_close,
+  Tsbrk_open,
+  Tsbrk_close,
+  Tbrk_open,
+  Tbrk_close,
+
+  Tshort_bin_op,
 };
 
 struct token {

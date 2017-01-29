@@ -18,7 +18,7 @@ int main() {
        << "token:  " << sizeof(token) << endl;
 
 
-  const char* input = "45 hello 'c' \"hello,\\n world\" 3.14159";
+  const char* input = "45 hello 'c' + \"hello,\\n world\" 3.14159";
   
   stringstream ss{input};
 
