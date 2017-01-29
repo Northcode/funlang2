@@ -16,6 +16,8 @@ enum LEX_STATE {
   Ldecimal,
   Lword,
   Ldone,
+  Lsquote,
+  Lchar,
 };
 
 enum PARSER_STATE {

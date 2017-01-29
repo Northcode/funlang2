@@ -20,6 +20,8 @@ void consume_init(parser* p) {
 
   if (isdigit(c)) {
     p->lstate = Ldigit;
+  } else if (c == '\'') {
+    p->lstate = Lsquote;
   } else if (isspace(c)) {
   } else if (isalpha(c)) {
     p->lstate = Lword;
@@ -82,6 +84,36 @@ void consume_word(parser* p) {
   }
 }
 
+void consume_squote(parser* p) {
+  assert(p->lstate == Lsquote);
+  
+  READ_C();
+
+  if (isalnum(c)) {
+    p->lstate = Lchar;
+  } else {
+    p->lstate = Ldone;
+  }
+}
+
+void consume_char(parser* p) {
+  assert(p->lstate == Lchar);
+
+  mystr& str = p->ldata.current_str;
+
+  p->ldata.ttype = Tstr; // set token type number
+
+  p->_arena->append_char(&str, p->ldata.c());
+  
+  READ_C();
+
+  if (isalnum(c)) {
+    return;
+  } else {
+    p->lstate = Ldone;
+  }
+}
+
 void consume_done(parser* p) {
   assert(p->lstate == Ldone);
 
@@ -90,21 +122,26 @@ void consume_done(parser* p) {
 
   switch (p->ldata.ttype) {
   case Tint: {
-    mystr ntermd = p->_arena->alloc_null_term_str(p->ldata.current_str);
+    p->_arena->append_char(&p->ldata.current_str, '\0');
     
-    t.data_int = atoi(ntermd.data);
+    t.data_int = atoi(p->ldata.current_str.data);
 
-    p->_arena->delete_head(&ntermd);
+    if (p->_arena->is_head(p->ldata.current_str)) p->_arena->delete_head(&p->ldata.current_str);
   } break;
   case Tdecimal: {
-    mystr ntermd = p->_arena->alloc_null_term_str(p->ldata.current_str);
+    p->_arena->append_char(&p->ldata.current_str, '\0');
 
-    t.data_decimal = atof(ntermd.data);
+    t.data_decimal = atof(p->ldata.current_str.data);
 
-    p->_arena->delete_head(&ntermd);
+    if (p->_arena->is_head(p->ldata.current_str)) p->_arena->delete_head(&p->ldata.current_str);
   } break;
   case Tstr: {
     t.data_str = p->ldata.current_str;
+  } break;
+  case Tchar: {
+    t.data_char = p->ldata.current_str.data[0];
+
+    if (p->_arena->is_head(p->ldata.current_str)) p->_arena->delete_head(&p->ldata.current_str);
   } break;
   };
 
@@ -118,7 +155,8 @@ state_proc jump_table[] = {
   { "digit", &consume_digit },
   { "decimal", &consume_decimal },
   { "word", &consume_word },
-  { "done", &consume_done }
+  { "done", &consume_done },
+  { "squote", &consume_squote }
 };
 
 char& parser::getc() {

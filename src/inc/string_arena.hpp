@@ -69,6 +69,10 @@ struct arena_page {
     first_unused = current_head;
   }
 
+  bool is_head(mystr s) {
+    return s.data == data + current_head;
+  }
+
   void append_char(mystr* dest, char c) {
     assert(first_unused + 1 < len);
     assert(dest->data >= data && dest->data < data + len);
@@ -146,6 +150,10 @@ struct arena {
 
   void discard_head() {
     pages.back().discard_head();
+  }
+
+  bool is_head(mystr s) {
+    return pages.back().is_head(s);
   }
 
   void delete_head(mystr* dest) {
