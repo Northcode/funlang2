@@ -22,6 +22,8 @@ void consume_init(parser* p) {
     p->lstate = Ldigit;
   } else if (c == '\'') {
     p->lstate = Lsquote;
+  } else if (c == '\"') {
+    p->lstate = Ldquote;
   } else if (isspace(c)) {
   } else if (isalpha(c)) {
     p->lstate = Lword;
@@ -71,7 +73,7 @@ void consume_word(parser* p) {
 
   mystr& str = p->ldata.current_str;
 
-  p->ldata.ttype = Tstr; // set token type number
+  p->ldata.ttype = Tword; // set token type number
 
   p->_arena->append_char(&str, p->ldata.c());
   
@@ -89,7 +91,7 @@ void consume_squote(parser* p) {
   
   READ_C();
 
-  if (isalnum(c)) {
+  if (c != '\'') {
     p->lstate = Lchar;
   } else {
     p->lstate = Ldone;
@@ -101,6 +103,37 @@ void consume_char(parser* p) {
 
   mystr& str = p->ldata.current_str;
 
+  p->ldata.ttype = Tchar; // set token type number
+
+  p->_arena->append_char(&str, p->ldata.c()); // read the char
+  
+  READ_C();
+
+  if (c == '\'') {
+    p->getc(); // consume the '
+    p->lstate = Ldone;
+  } else {
+    //@TODO: error reporting
+    p->lstate = Linit;
+  }
+}
+
+void consume_dquote(parser* p) {
+  assert(p->lstate == Ldquote);
+  
+  READ_C();
+
+  if (c != '\"') {
+    p->lstate = Lstr;
+  } else {
+    p->lstate = Ldone;
+  }
+}
+
+void consume_str(parser* p) {
+  assert(p->lstate == Lstr);
+
+  mystr& str = p->ldata.current_str;
 
   p->ldata.ttype = Tstr; // set token type number
 
@@ -108,11 +141,43 @@ void consume_char(parser* p) {
   
   READ_C();
 
-  if (isalnum(c)) {
-    return;
-  } else {
+  if (c == '\"') {
+    p->getc(); // consume the "
     p->lstate = Ldone;
+  } else if (c == '\\') {
+    p->lstate = Lesq_str;
   }
+}
+
+void consume_esq_str(parser* p) {
+  assert(p->lstate == Lesq_str);
+
+  mystr& str = p->ldata.current_str;
+
+  p->ldata.ttype = Tstr; // set token type number
+
+  
+  READ_C();
+
+  char toappend = c;
+  
+  if (c == 'n') {
+    toappend = '\n';
+  } else if (c == 't') {
+    toappend = '\t';
+  } else if (c == '0') {
+    toappend = '\0';
+  } else if (c == '\\') {
+    toappend = '\\';
+  } else if (c == 'r') {
+    toappend = '\r';
+  }
+
+  p->getc(); // consume char
+  
+  p->_arena->append_char(&str,toappend);
+
+  p->lstate = Lstr;
 }
 
 void consume_done(parser* p) {
@@ -141,6 +206,9 @@ void consume_done(parser* p) {
       p->_arena->delete_head(&p->ldata.current_str);
 
   } break;
+  case Tword: {
+    t.data_str = p->ldata.current_str;
+  } break;
   case Tstr: {
     t.data_str = p->ldata.current_str;
   } break;
@@ -165,7 +233,11 @@ state_proc jump_table[] = {
   { "decimal", &consume_decimal },
   { "word", &consume_word },
   { "done", &consume_done },
-  { "squote", &consume_squote }
+  { "squote", &consume_squote },
+  { "char", &consume_char },
+  { "dquote", &consume_dquote },
+  { "str", &consume_str },
+  { "esq_str", &consume_esq_str },
 };
 
 char& parser::getc() {
@@ -175,6 +247,10 @@ char& parser::getc() {
 
 
 void parser::scan_char() {
+  using std::cout;
+  using std::endl;
+
+  // cout << "scan state: " << jump_table[lstate].name << endl;
   jump_table[lstate].proc(this);
 }
 
@@ -200,8 +276,14 @@ void parser::print_tokens() {
     case Tstr:
       cout << tok.data_str;
       break;
+    case Tword:
+      cout << tok.data_str;
+      break;
     case Tint:
       cout << tok.data_int;
+      break;
+    case Tchar:
+      cout << tok.data_char;
       break;
     case Tdecimal:
       cout << tok.data_decimal;

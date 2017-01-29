@@ -34,7 +34,10 @@ int main() {
   // cout << "new alloc: " << test2 << endl;
 
   // stringstream ss{"this is a test 2h + 4; *a = 50;"};
-  stringstream ss{"45 hello 3.14159"};
+
+  const char* input = "45 hello 'c' \"hello,\\n world\" 3.14159";
+  
+  stringstream ss{input};
 
   parser p{&arr,ss};
 
@@ -45,10 +48,13 @@ int main() {
   // p.scan_token();
   // p.scan_token();
 
+  cout << "scanning: " << input << endl;
+
   p.scan_tokens();
 
   p.print_tokens();
 
+  cout << "arena data:" << endl;
   arr.dump();
 
   return 0;
