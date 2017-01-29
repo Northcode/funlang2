@@ -1,0 +1,34 @@
+#ifndef TOKEN_H
+#define TOKEN_H
+
+#include "mystr.hpp"
+
+enum token_types {
+  Tint,
+  Tdecimal,
+  Tchar,
+  Tword,
+  Tstr,
+};
+
+struct token {
+
+  token_types type;
+  
+  token(token_types type) {
+    this->type = type;
+  }
+
+  long filepos;
+
+  union {
+    int data_int;
+    double data_decimal;
+    long data_long;
+    char data_char;
+    mystr data_str;
+  };
+  
+};
+
+#endif

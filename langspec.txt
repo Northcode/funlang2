@@ -1,0 +1,89 @@
+# FUNLANG LANGUAGE SPEC
+
+# LEXER TOKENS
+<ident>		:=	[a-zA-Z]+[a-zA-Z0-9-_]*
+<keyword>	:=	for|in|if|else|while|fn|return|class
+<number>	:=	[0-9]+(\.[0-9]+)?
+<string>	:=	\"[^"]*\"	# TODO: add support for char escaping in strings
+<char_lit>	:=	\'.
+<open_paren>	:=	\(
+<close_paren>	:=	\)
+<open_block>	:=	\{
+<close_block>	:=	\}
+<assignment>	:=	=				# lookahead: 1
+<bang>		:=	\!				# lookahead: 1
+<arithop>	:=	+ | - | * | \/
+<smallcop>	:=	< | > | . | \| | &	    	# lookahead: 1
+<bigcop>	:=	== | <= | >= | \!= | -> | << | >> | \|\| # lookahead length: 1
+<whitespace>	:=	[ \t\n]+
+
+#PARSER PART
+
+#parse tree:
+
+EXPR = EXPR_mp | EXPR_ms | EXPR_i | EXPR_f
+# math expressions
+EXPR_mp -> EXPR_ms + EXPR_mp | EXPR_ms - EXPR_mp | EXPR_ms
+EXPR_ms -> EXPR_ms * EXPR_ms | EXPR_ms / EXPR_ms | EXPR_i | (EXPR_mp) | EXPR_ms + (EXPR_mp) | EXPR - (EXPR_mp)
+# ident expressions
+EXPR_i  -> ident | ident.EXPR_i
+# func expressions
+EXPR_f  -> EXPR_i.ident(EXPR_fa) | ident(EXPR_fa)
+EXPR_fa -> EXPR | EXPR,EXPR_fa
+
+
+Ea
+Eb + Ea
+Eb * Eb + Eb
+id * id + id
+
+
+# Code Example:
+
+greeter :: struct {
+	message :string
+
+	hello :: () {
+	    print("%\n", message)
+	}
+}
+
+main :: () {
+     message := "hello, world"
+     print("%\n",message)
+}
+
+
+fn main(args :string[]) : int {
+
+   if ! args.length > 0 {
+      println("No arguments passed!")
+   } else {
+      println("printing some arguments: ")
+   }
+
+   for arg in args {
+       println(arg)
+   }
+
+   i : int = 0
+   while i < 100 {
+   	println(i); i++;
+   }
+
+   g : greeter{"Hello, "}
+   g.greet("Andreas")
+   return 0;
+}
+
+class greeter {
+    message :string
+
+    fn! greeter(message:string) {
+        this.message = message;
+    }
+
+    fn! greet(name:string) {
+        println(message + name)
+    }
+}
