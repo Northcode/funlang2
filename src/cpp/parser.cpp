@@ -253,6 +253,14 @@ void consume_done(parser* p) {
   p->lstate = Linit;
 }
 
+
+void parse_init(parser* p) {
+
+  p->next_token();
+  
+}
+
+
 state_proc jump_table[] = {
   { "init", &consume_init },
   { "digit", &consume_digit },
@@ -265,6 +273,10 @@ state_proc jump_table[] = {
   { "str", &consume_str },
   { "esq_str", &consume_esq_str },
   { "plus", &consume_plus },
+};
+
+state_proc parse_jump_table[] = {
+  { "init" , &parse_init },
 };
 
 char& parser::getc() {
@@ -293,6 +305,20 @@ void parser::scan_tokens() {
     scan_token();
   }
 }
+
+void parser::next_token() {
+  
+}
+
+void parser::parse_token() {
+  parse_jump_table[pstate].proc(this);
+}
+
+
+void parser::parse_expression() {
+  
+}
+
 
 void parser::print_tokens() {
   using std::cout;

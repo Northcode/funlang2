@@ -39,12 +39,17 @@ struct lexer_data {
   char& c() { return (char&)i; }
 };
 
+struct parser_data {
+  token* current;
+};
+
 struct parser {
 
   LEX_STATE lstate;
   PARSER_STATE pstate;
 
   lexer_data ldata;
+  parser_data pdata;
 
   std::vector<token> tokens;
 
@@ -65,6 +70,12 @@ struct parser {
   void scan_token();
   void scan_char();
   char& getc();
+
+  void next_token();
+
+  void parse_expression();
+
+  void parse_token();
 };
 
 #endif
