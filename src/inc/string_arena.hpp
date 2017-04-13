@@ -17,6 +17,7 @@ struct arena_page {
 
   size_t first_unused;
   size_t current_head;
+  size_t last_head;
 
   arena_page() {
     data = new char[PAGE_SIZE];
@@ -50,6 +51,8 @@ struct arena_page {
     assert(first_unused + size < len);
     mystr s;
 
+    last_head = current_head;
+
     s.data = (data + first_unused);
     s.len = size;
     current_head = first_unused;
@@ -67,6 +70,7 @@ struct arena_page {
 
   void discard_head() {
     first_unused = current_head;
+    current_head = last_head;
   }
 
   bool is_head(mystr s) {
@@ -104,11 +108,20 @@ struct arena_page {
 
   void realloc_head(mystr* src, size_t size) {
     assert(current_head + size < len);
-    assert(src->data > data && src->data < data + len);
+    assert(is_head(*src));
+    assert(src->data >= data && src->data < data + len);
 
     first_unused = current_head + size;
     src->len = size;
     
+  }
+
+  void make_null_term(mystr* src) {
+    assert(current_head + src->len + 1 < len);
+    assert(is_head(*src));
+    assert(src->data >= data && src->data < data + len);
+
+    src->data[src->len] = '\0';
   }
 
 };
@@ -230,6 +243,21 @@ struct arena {
       
     } else {
       cur_page->realloc_head(src, size);
+    }
+  }
+
+  void make_null_term(mystr* src) {
+    arena_page* cur_page = &pages.back();
+    if (cur_page->current_head + src->len + 1 >= cur_page->len) {
+      cur_page = new_page();
+
+      mystr newstr = cur_page->alloc_str(src->len);
+      strncpy(newstr.data, src->data, src->len);
+      cur_page->make_null_term(&newstr);
+      *src = newstr;
+      
+    } else {
+      cur_page->make_null_term(src);
     }
   }
 

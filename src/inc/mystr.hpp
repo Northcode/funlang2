@@ -12,7 +12,7 @@ struct mystr {
 
   size_t len;
   char* data;
-  
+
   friend std::ostream& operator<<(std::ostream& stream, const mystr& str) {
     for (size_t i = 0; i < str.len; i++) {
       stream << (char)str.data[i];
