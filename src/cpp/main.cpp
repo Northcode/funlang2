@@ -27,19 +27,24 @@ struct lexer {
     STR,
     ESCAPED_STR,
     IDENT,
+    CHAR,
+    KEYWORD,
+    SYMBOL,
   };
 
   STATES state;
+  const set<char> valid_ident_chars{'_', '*', '+', '!', '-', '_', '\'', '?', '>', '<' };
+  const set<char> valid_symbol_chars{'(',')','{','}','[',']'};
 
   arena* _arena;
   mystr buffer;
   
   lexer (string input, arena* arr) :
-    _arena(arr),
     _input(input),
     iter(_input.begin()),
     begin(_input.begin()),
-    end(_input.end()) {
+    end(_input.end()),
+    _arena(arr) {
     state = HALT;
   }
 
@@ -73,42 +78,80 @@ struct lexer {
 
     switch (state) {
     case INIT:
-    assert(iter != end);
+      assert(iter != end);
 
       buffer = _arena->alloc_str(0);
       
       state = READ;
       break;
     case READ:
-    assert(iter != end);
+      assert(iter != end);
 
       if (isdigit(current())) {
 	state = DIGIT;
       } else if (current() == '"') {
 	step();
 	state = STR;
-      } else if (isalpha(current())) {
+      } else if (isalpha(current()) || valid_ident_chars.find(current()) != valid_ident_chars.end()) {
 	state = IDENT;
+      } else if (current() == '?') {
+	state = CHAR;
+      } else if (current() == ':') {
+	step();
+	state = KEYWORD;
+      } else if (valid_symbol_chars.find(current()) != valid_symbol_chars.end()) {
+	state = SYMBOL;
       } else {
 	step();
 	state = READ;
       }
       break;
+    case SYMBOL:
+      assert(iter != end);
+
+      _arena->append_char(&buffer, current());
+      step();
+      
+      if (!(valid_symbol_chars.find(current()) != valid_symbol_chars.end())) {
+	state = PUSH;
+      }
+      
+      break;
+    case CHAR:
+      assert(iter != end);
+
+      step();
+      _arena->append_char(&buffer, current());
+
+      step();
+      state = PUSH;
+
+      break;
     case IDENT:
       assert(iter != end);
       {
-	const set<char> valid_symbol_chars{'_', '*', '+', '!', '-', '_', '\'', '?', '>', '<' };
 
 	_arena->append_char(&buffer, current());
 	step();
       
-	if (!(isalnum(current()) || valid_symbol_chars.find(current()) != valid_symbol_chars.end())) {
+	if (!(isalnum(current()) || valid_ident_chars.find(current()) != valid_ident_chars.end())) {
 	  state = PUSH;
 	}
       }
       break;
+    case KEYWORD:
+      assert(iter != end);
+
+      _arena->append_char(&buffer, current());
+      step();
+
+      if (isspace(current())) {
+	state = PUSH;
+      }
+      
+      break;
     case DIGIT:
-    assert(iter != end);
+      assert(iter != end);
 
       _arena->append_char(&buffer, current());
       step();
@@ -122,7 +165,7 @@ struct lexer {
       }
       break;
     case DECIMAL:
-    assert(iter != end);
+      assert(iter != end);
       _arena->append_char(&buffer, current());
       step();
 
@@ -202,7 +245,7 @@ int main() {
 
   arena arr{};
 
-  string input = "45 (say_hello ?c \"hello,\\n world\") (isint? 4) (str->int 5) 3.14159";
+  string input = "45 (say_hello ?c \"hello,\\n world\") {:name \"Andreas\"} (isint? 4) (str->int 5) 3.14159";
 
   lexer lex{input,&arr};
 
