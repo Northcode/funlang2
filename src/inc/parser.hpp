@@ -10,72 +10,16 @@
 #include "token.hpp"
 #include "string_arena.hpp"
 
-enum LEX_STATE {
-  Linit = 0,
-  Ldigit,
-  Ldecimal,
-  Lword,
-  Ldone,
-  Lsquote,
-  Lchar,
-  Ldquote,
-  Lstr,
-  Lesq_str,
-
-  Lplus,
-};
-
-enum PARSER_STATE {
-  Pinit= 0,
-};
-
-struct lexer_data {
-  int i;
-
-  mystr current_str;
-
-  token_types ttype;
-
-  char& c() { return (char&)i; }
-};
-
-struct parser_data {
-  token* current;
-};
-
 struct parser {
-
-  LEX_STATE lstate;
-  PARSER_STATE pstate;
-
-  lexer_data ldata;
-  parser_data pdata;
 
   std::vector<token> tokens;
 
-  std::istream& inputstream;
   arena* _arena;
 
-  parser(arena* arena, std::istream& inputstream) : inputstream(inputstream),_arena(arena) {
-    lstate = Linit;
-    pstate = Pinit;
+  parser(arena* arena, std::istream& inputstream) : _arena(arena) {
     tokens = std::vector<token>();
     tokens.reserve(100); // @TODO: figure out a good number for this
   }
-
-  void print_tokens();
-  
-  void scan_tokens();
-
-  void scan_token();
-  void scan_char();
-  char& getc();
-
-  void next_token();
-
-  void parse_expression();
-
-  void parse_token();
 };
 
 #endif
