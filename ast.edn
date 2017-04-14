@@ -1,0 +1,15 @@
+{:name expr
+ :types [
+         {:name "bin_exp"
+          :fields [
+                   ["expr" "left"]
+                   ["token" "operator"]
+                   ["expr" "right"]
+                   ]}
+         {:name "integer"
+          :fields [
+                   ["int" "value"]
+                   ]}
+         
+         ]}
+
