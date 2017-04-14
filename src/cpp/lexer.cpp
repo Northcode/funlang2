@@ -1,26 +1,30 @@
 #include "lexer.hpp"
 
-lexer::lexer (std::string input, arena* arr) :
+lexer::lexer (const std::string input, arena* arr) :
   _input(input),
-  iter(_input.begin()),
   begin(_input.begin()),
   end(_input.end()),
+  iter(begin),
   _arena(arr),
   tokens{} {
   state = HALT;
 }
 
-char& lexer::current() {
+const char& lexer::current() const {
   return *iter;
 }
 
-char& lexer::peek() {
+const char& lexer::peek() const {
   auto next = iter;
   next++;
   return *next;
 }
 
-char& lexer::step() {
+const char& lexer::step() {
+  auto cur = *iter;
+  if (cur == '\n') {
+    curline++;
+  }
   return *(++iter);
 }
 
@@ -34,6 +38,7 @@ void lexer::scan_all() {
 void lexer::init_scan() {
   state = INIT;
   iter = begin;
+  curline = 1;
 }
 
 void lexer::scan_char() {
@@ -64,9 +69,12 @@ void lexer::scan_char() {
       state = KEYWORD;
     } else if (valid_symbol_chars.count(current())) {
       state = SYMBOL;
-    } else {
+    } else if (isspace(current())) {
       step();
       state = READ;
+    } else {
+      error("unexpected character", distance(begin,iter));
+      state = HALT;
     }
     break;
   case SYMBOL:
@@ -387,3 +395,6 @@ void lexer::scan_char() {
   }
 }
  
+void lexer::error(const std::string message, int chr) {
+  std::cout << "error on line: " << curline << "," << chr << ": " << message << std::endl;
+}

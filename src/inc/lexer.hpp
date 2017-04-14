@@ -10,8 +10,10 @@
 
 struct lexer {
 
-  std::string _input;
-  std::string::iterator iter, begin, end;
+  const std::string _input;
+  const std::string::const_iterator begin, end;
+  std::string::const_iterator iter;
+  int curline;
 
   enum STATES {
     HALT,
@@ -31,7 +33,7 @@ struct lexer {
   };
 
   STATES state;
-  const std::set<char> valid_ident_chars{'_', '*', '+', '!', '-', '_', '\'', '?', '>', '<' };
+  const std::set<char> valid_ident_chars{'_', '*', '+', '!', '-', '_', '\'', '?', '>', '<', '=' };
   const std::set<char> valid_symbol_chars{'#','(',')','{','}','[',']'};
   const std::set<std::string> valid_literals{"true","false","nil","def","let","fn"};
 
@@ -43,11 +45,12 @@ struct lexer {
 
   lexer (std::string input, arena* arr);
 
-  char& current();
-  char& peek();
-  char& step();
+  const char& current() const;
+  const char& peek() const;
+  const char& step();
 
   void init_scan();
+  void error(const std::string message, int line);
 
   void scan_all();
   void scan_char();

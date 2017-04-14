@@ -10,15 +10,14 @@
 #include "lexer.hpp"
 #include "parser.hpp"
 
-
 using namespace std;
+
 
 int main() {
 
   arena arr{};
 
-  string input = "45/100 (say_hello ?c \"hello,\\n world\") {:name \"Andreas\" :programmer? true} {:names #{\"Andreas\", \"Odd\"}} (isint? 4) (str->int 5) 3.14159";
-
+  string input = "45/100 (say_hello ?c \"hello,\\n world\") \n{:name % \"Andreas\" :programmer? true} {:names #{\"Andreas\", \"Odd\"}} (isint? 4) (str->int 5) 3.14159";
 
   lexer lex{input,&arr};
 
