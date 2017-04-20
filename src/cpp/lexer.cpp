@@ -69,7 +69,7 @@ void lexer::scan_char() {
       state = KEYWORD;
     } else if (valid_symbol_chars.count(current())) {
       state = SYMBOL;
-    } else if (isspace(current())) {
+    } else if (isspace(current()) || current() == ',') {
       step();
       state = READ;
     } else {
