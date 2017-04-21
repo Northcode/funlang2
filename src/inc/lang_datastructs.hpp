@@ -34,7 +34,7 @@ struct pvec {
     
     friend std::ostream& operator<<(std::ostream& stream, node_t& data) {
       if (data.type == node_type::leaf) {
-	stream << "\n LEAF ----------------------------- \n";
+	stream << "LEAF ----------------------------- \n";
 	leaf_node_t* nodeptr = (leaf_node_t*)&data;
 	for (key_type i = 0; i < nodeptr->count; i++) {
 	  stream << nodeptr->values[i] << " ";
@@ -93,11 +93,12 @@ struct pvec {
   pvec(pvec&) = default;
 
 
-  node* node_for(key_type key) {
+  node node_for(key_type key) {
     if (key < this->count) {
-      node* curr_node = this->root;
+      node curr_node = this->root;
       for (size_t level = this->shift; level > 0; level -= bits) {
-	curr_node = curr_node->children[(key >> level) & index_mask];
+	internal_node tmp = std::static_pointer_cast<internal_node_t>(curr_node);
+	curr_node = tmp->children[(key >> level) & index_mask];
       }
       return curr_node;
     } else {
@@ -114,11 +115,11 @@ struct pvec {
   }
 
   const T& nth(key_type key) {
-    node* lookup_node;
+    leaf_node lookup_node;
     if (this->tail && (this->count - tail_offset() < width)) {
       lookup_node = this->tail;
     } else {
-      lookup_node = node_for(key);
+      lookup_node = std::static_pointer_cast<leaf_node_t>(node_for(key));
     }
     assert(lookup_node);
     // if (! lookup_node); // @TODO: handle error here sometime plz
@@ -145,7 +146,30 @@ struct pvec {
       to_insert = child ? push_tail(level-bits, child, tail) : new_path(level - bits, tail);
     }
     ret->children[subidx] = to_insert;
-    return ret;
+     return ret;
+  }
+
+  internal_node do_assoc(size_t level, internal_node old_root, key_type key, T item) {
+    internal_node ret{old_root};
+    if (level == 0) {
+    }
+  }
+
+  pvec assoc(key_type key, T item) {
+    if (key >= 0 && key < count) {
+      if (key >= tail_offset()) {
+	leaf_node newtail = leaf_node(this->tail);
+	newtail->values[key & index_mask] = item;
+
+	pvec newvec{count, shift, this->root, newtail};
+	return newvec;
+      } else {
+	pvec newvec{count, shift, do_assoc(shift, root, key, item), tail};
+	return newvec;
+      }
+    } else if (key == count) {
+      return cons(item);
+    }
   }
   
   pvec conj(T item) {
@@ -167,7 +191,8 @@ struct pvec {
     } else {
       internal_node newroot;
       size_t newshift = shift;
-      if ((count >> width) > (1 << shift)) {
+      // check for root overflow
+      if ((count >> bits) > (1 << shift)) {
 	newroot = make_internal();
 
 	newroot->children[0] = root;
@@ -187,6 +212,8 @@ struct pvec {
       newvec.count++;
 
       newvec.root = newroot;
+
+      newvec.shift = newshift;
 
       return newvec;
     }

@@ -17,7 +17,7 @@
 using namespace std;
 
 
-int main() {
+int main(int argc, char** argv) {
 
   // arena arr{};
 
@@ -27,13 +27,17 @@ int main() {
   for (int i = 0; i < 10000000; i++) {
     test_vec = test_vec.conj(i);
   }
-  cout << test_vec << endl;
 
   // std::vector<int> test_std_vec{};
 
   // for (int i = 0; i < 10000000; i++) {
   //   test_std_vec.push_back(i);
   // }
+
+  if (argc > 1) {
+    int idx = atoi(argv[1]);
+    cout << "index: " << idx << " value: " << test_vec.nth(idx) << "\n";
+  }
 
 
   // cout << "[";
