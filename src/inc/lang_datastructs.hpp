@@ -34,12 +34,14 @@ struct pvec {
     
     friend std::ostream& operator<<(std::ostream& stream, node_t& data) {
       if (data.type == node_type::leaf) {
+	stream << "\n LEAF ----------------------------- \n";
 	leaf_node_t* nodeptr = (leaf_node_t*)&data;
 	for (key_type i = 0; i < nodeptr->count; i++) {
 	  stream << nodeptr->values[i] << " ";
 	}
       } else {
 	internal_node_t* nodeptr = (internal_node_t*)&data;
+	stream << "\n NODE ----------------------------- \n";
 	for (auto i : nodeptr->children) {
 	  if (i)
 	    stream << *i << " ";
@@ -198,6 +200,8 @@ struct pvec {
       stream << *data.root;
     }
 
+    stream << "\n----------------------------------------\n";
+    
     if (data.tail) {
       stream << *data.tail;
     }

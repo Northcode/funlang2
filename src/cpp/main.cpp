@@ -19,17 +19,29 @@ using namespace std;
 
 int main() {
 
-  arena arr{};
+  // arena arr{};
 
 
   pvec<int, 5> test_vec{};
 
-  for (int i = 0; i < 35; i++) {
+  for (int i = 0; i < 10000000; i++) {
     test_vec = test_vec.conj(i);
   }
-
-
   cout << test_vec << endl;
+
+  // std::vector<int> test_std_vec{};
+
+  // for (int i = 0; i < 10000000; i++) {
+  //   test_std_vec.push_back(i);
+  // }
+
+
+  // cout << "[";
+  // for (auto i : test_std_vec) {
+  //   cout << i << " ";
+  // }
+  // cout << "]";
+  
 
   // ifstream ifinput{"sample.prog"};
 
