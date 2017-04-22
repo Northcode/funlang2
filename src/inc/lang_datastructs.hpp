@@ -34,14 +34,14 @@ struct pvec {
     
     friend std::ostream& operator<<(std::ostream& stream, node_t& data) {
       if (data.type == node_type::leaf) {
-	stream << "LEAF ----------------------------- \n";
+	// stream << "LEAF ----------------------------- \n";
 	leaf_node_t* nodeptr = (leaf_node_t*)&data;
 	for (key_type i = 0; i < nodeptr->count; i++) {
 	  stream << nodeptr->values[i] << " ";
 	}
       } else {
 	internal_node_t* nodeptr = (internal_node_t*)&data;
-	stream << "\n NODE ----------------------------- \n";
+	// stream << "\n NODE ----------------------------- \n";
 	for (auto i : nodeptr->children) {
 	  if (i)
 	    stream << *i << " ";
@@ -82,15 +82,39 @@ struct pvec {
   size_t count;
   size_t shift;
 
-  pvec(internal_node root, leaf_node tail, size_t count, size_t shift) {
+  pvec(size_t count, size_t shift, internal_node root, leaf_node tail) {
     this->shift = shift;
     this->root = root;
     this->tail = tail;
     this->count = count;
   }
 
-  pvec() : pvec(make_internal(), nullptr, 0, bits) {}
-  pvec(pvec&) = default;
+  pvec() : pvec(0, bits, make_internal(), nullptr) {}
+  pvec(const pvec&) = default;
+
+  leaf_node copy_leaf(const leaf_node& node) {
+    leaf_node newnode = make_leaf();
+    newnode->values = node->values;
+    newnode->count = node->count;
+    return newnode;
+  }
+
+  internal_node copy_internal(const internal_node& node) {
+    internal_node newnode = make_internal();
+    newnode->children = node->children;
+    newnode->count = node->count;
+    return newnode;
+  }
+
+  inline internal_node copy_internal(const node& node) {
+    internal_node casted = std::static_pointer_cast<internal_node_t>(node);
+    return copy_internal(casted);
+  }
+  
+  inline leaf_node copy_leaf(const node& node) {
+    leaf_node casted = std::static_pointer_cast<leaf_node_t>(node);
+    return copy_leaf(casted);
+  }
 
 
   node node_for(key_type key) {
@@ -136,7 +160,7 @@ struct pvec {
 
   internal_node push_tail(size_t level, internal_node parent, leaf_node tail) {
     size_t subidx = ((count - 1) >> level) & index_mask;
-    internal_node ret = internal_node(parent);
+    internal_node ret = copy_internal(parent);
     node to_insert;
     if (level == bits) {
       to_insert = tail;
@@ -149,26 +173,35 @@ struct pvec {
      return ret;
   }
 
-  internal_node do_assoc(size_t level, internal_node old_root, key_type key, T item) {
-    internal_node ret{old_root};
+  node do_assoc(size_t level, node parent, key_type key, T item) {
     if (level == 0) {
+      leaf_node ret = copy_leaf(parent);
+      ret->values[key & index_mask] = item;
+      return ret;
+    } else {
+      internal_node ret = copy_internal(parent);
+      int subindex = (key >> level) & index_mask;
+      ret->children[subindex] = do_assoc(level - bits, std::static_pointer_cast<internal_node_t>(parent)->children[subindex], key, item);
+      return ret;
     }
   }
 
   pvec assoc(key_type key, T item) {
     if (key >= 0 && key < count) {
       if (key >= tail_offset()) {
-	leaf_node newtail = leaf_node(this->tail);
+	leaf_node newtail = copy_leaf(this->tail);
 	newtail->values[key & index_mask] = item;
 
 	pvec newvec{count, shift, this->root, newtail};
 	return newvec;
       } else {
-	pvec newvec{count, shift, do_assoc(shift, root, key, item), tail};
+	pvec newvec{count, shift, std::static_pointer_cast<internal_node_t>(do_assoc(shift, root, key, item)), tail};
 	return newvec;
       }
     } else if (key == count) {
-      return cons(item);
+      return conj(item);
+    } else {
+      throw 5;
     }
   }
   
@@ -181,7 +214,7 @@ struct pvec {
     if (i - tail_offset() < width) {
       if (! this->tail) newvec.tail = std::make_shared<leaf_node_t>();
       // else newvec.tail = leaf_node(new leaf_node_t(*this->tail));
-      else newvec.tail = leaf_node(this->tail);
+      else newvec.tail = copy_leaf(this->tail);
 
       newvec.tail->values[newvec.tail->count] = item;
       newvec.tail->count++;
@@ -226,8 +259,6 @@ struct pvec {
     if (data.root) {
       stream << *data.root;
     }
-
-    stream << "\n----------------------------------------\n";
     
     if (data.tail) {
       stream << *data.tail;
