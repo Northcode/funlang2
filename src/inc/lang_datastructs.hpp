@@ -3,6 +3,75 @@
 
 #include <iostream>
 #include <memory>
+#include <experimental/optional>
+
+template<typename TFrom, typename Func>
+auto operator>>=(std::experimental::optional<TFrom> from, Func&& func) -> decltype(func(from.value())) {
+  if (from) {
+    return func(*from);
+  } else {
+    return {};
+  }
+}
+
+template<typename T>
+struct plist {
+
+  struct node {
+    T item;
+    std::shared_ptr<node> rest;
+    size_t count;
+
+    node(T item, const std::shared_ptr<node>& rest, size_t count) : item(item), rest(rest), count(count) {}
+    node(const node&) = default;
+
+    friend std::ostream& operator<<(std::ostream& stream, node& data) {
+      stream << data.item;
+      if (data.rest) {
+	stream << " " << *data.rest;
+      }
+      return stream;
+    }
+  };
+
+  std::shared_ptr<node> first;
+
+  plist() : first(nullptr) {}
+  plist(std::shared_ptr<node> first) : first(first) {}
+  plist(const plist&) = default;
+
+  const T& peek() {
+    assert(first);
+    return first->item;
+  }
+
+  plist pop() {
+    if (first) {
+      return plist(first->rest);
+    }
+    else {
+      return *this;
+    }
+  }
+
+  plist conj(T item) {
+    if (first) {
+      return plist(std::make_shared<node>(item, first, first->count + 1));
+    } else {
+      return plist(std::make_shared<node>(item, nullptr, 1));
+    }
+  }
+
+  friend std::ostream& operator<<(std::ostream& stream, plist& data) {
+    stream << "(";
+    if (data.first) {
+      stream << *data.first;
+    }
+    stream << ")";
+    return stream;
+  }
+  
+};
 
 
 template<typename T, size_t BITS = 5>
@@ -11,7 +80,6 @@ struct pvec {
   static constexpr size_t bits = BITS;
   static constexpr size_t width = 1 << bits;
   static constexpr size_t index_mask = width - 1;
-
 
   using key_type = size_t;
   
@@ -170,7 +238,7 @@ struct pvec {
       to_insert = child ? push_tail(level-bits, child, tail) : new_path(level - bits, tail);
     }
     ret->children[subidx] = to_insert;
-     return ret;
+    return ret;
   }
 
   node do_assoc(size_t level, node parent, key_type key, T item) {
@@ -186,7 +254,7 @@ struct pvec {
     }
   }
 
-  pvec assoc(key_type key, T item) {
+  std::experimental::optional<pvec> assoc(key_type key, T item) {
     if (key >= 0 && key < count) {
       if (key >= tail_offset()) {
 	leaf_node newtail = copy_leaf(this->tail);
@@ -201,7 +269,7 @@ struct pvec {
     } else if (key == count) {
       return conj(item);
     } else {
-      throw 5;
+      return {};
     }
   }
   
