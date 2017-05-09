@@ -20,11 +20,6 @@
 using namespace std;
 
 
-struct free_lst_block {
-  size_t size;
-  free_lst_block* next;
-};
-
 struct block {
   size_t size;
   void*  ptr;
@@ -183,6 +178,10 @@ struct sized_allocator {
     _parent.deallocate(ablk);
   }
 
+  size_t sizeof_alloc(void* ptr) {
+    return *((size_t*)((char*)ptr - affixed_alloc::prefix_size));
+  }
+
   void dump() {
     _parent.dump();
   }
@@ -223,7 +222,8 @@ struct typed_allocator {
   template<typename T>
   void dealloc_array(T* arr) {
     // cout << sized_alloc::affixed_alloc::prefix_size << endl;
-    size_t arr_size = *(size_t*)((char*)arr - sized_alloc::affixed_alloc::prefix_size);
+    // size_t arr_size = *(size_t*)((char*)arr - sized_alloc::affixed_alloc::prefix_size);
+    size_t arr_size = _parent.sizeof_alloc(arr);
     // cout << "array size: " << arr_size << endl;
     for (size_t i = 0; i < arr_size && i < 5; i++) {
       arr[i].~T();
@@ -300,7 +300,7 @@ int main(int argc, char** argv) {
   A* arr = mtest.alloc_array<A>(5);
 
   for (size_t i = 0; i < 5; i++) {
-    arr[i] = A(i*1,i*2,i*3);
+    new (&arr[i]) A(i*1,i*2,i*3);
   }
 
   cout << *aptr << endl;
