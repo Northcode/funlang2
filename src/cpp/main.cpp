@@ -37,6 +37,22 @@ struct A {
   }
 };
 
+template<typename T, typename Alloc>
+struct uptr {
+
+  T* ptr;
+  Alloc* allocator;
+
+  uptr(T* from, Alloc* alloc) {
+    ptr = from;
+    allocator = alloc;
+  }
+
+  ~uptr() {
+    allocator->deallocate(ptr);
+  }
+  
+};
 
 int main(int argc, char** argv) {
 
@@ -44,29 +60,44 @@ int main(int argc, char** argv) {
 
 
   // stack_allocator<512,alignof(A)> mtest{};
-  typed_allocator<freelist_allocator<loud_allocator<stack_allocator<512,alignof(A)>>, 10, 32, 32>> mtest{};
+  // using alloc = typed_allocator<freelist_allocator<loud_allocator<malloc_allocator>, 10, 32, 32>>;
+  using alloc = typed_allocator<freelist_allocator<loud_allocator<stack_allocator<512,alignof(A)>>, 10, 128, 32>>;
   // typed_allocator<loud_allocator<malloc_allocator>> mtest{};
 
-  A* aptr = mtest.allocate<A>(1,2,3);
+  alloc mtest{};
+
 
   A* blkb = mtest.allocate<A>(3,2,1);
   A* arr = mtest.alloc_array<A>(5);
 
-  for (size_t i = 0; i < 5; i++) {
-    new (&arr[i]) A(i*1,i*2,i*3);
+  {
+    auto test = uptr<A, alloc>(mtest.allocate<A>(5,5,5), &mtest);
+
+    if (arr) {
+      for (size_t i = 0; i < 5; i++) {
+	new (&arr[i]) A(i*1,i*2,i*3);
+      }
+    
+      for (size_t i = 0; i < 5; i++) {
+	cout << arr[i] << endl;
+      }
+    }
+
+    cout << *blkb << endl;
+
   }
+
+  A* aptr = mtest.allocate<A>(1,2,3);
+
 
   cout << *aptr << endl;
-  cout << *blkb << endl;
-
-  for (size_t i = 0; i < 5; i++) {
-    cout << arr[i] << endl;
-  }
 
   // mtest.dump();
 
-  cout << "clearing array...\n";
-  mtest.dealloc_array(arr);
+  if (arr) {
+    cout << "clearing array...\n";
+    mtest.dealloc_array(arr);
+  }
   cout << "clearing A...\n";
   mtest.deallocate(aptr);
   cout << "clearing B...\n";

@@ -8,6 +8,17 @@ struct block {
     stream << "BLOCK: {size:" << data.size << ", ptr:" << data.ptr << "}";
     return stream;
   }
+
+  operator bool() {
+    return size != 0;
+  }
+
+  inline static block empty() {
+    block blk;
+    blk.size = 0;
+    blk.ptr = nullptr;
+    return blk;
+  }
 };
 
 struct malloc_allocator {
@@ -26,6 +37,8 @@ struct malloc_allocator {
   bool owns(block blk) {
     return true;
   }
+
+  size_t good_size(size_t size) { return size; }
 };
 
 inline constexpr size_t round_to_alignment(size_t basis, size_t n) noexcept {
@@ -77,7 +90,7 @@ struct stack_allocator {
 	      << (void*)((char*)blk.ptr + blk.size) << "\n"
 	      << "Stack top: " << (void*)top << "\n";
     
-    assert(is_last_used_block(blk) == true);
+    //assert(is_last_used_block(blk) == true);
     if (is_last_used_block(blk)) {
       top = static_cast<char*>(blk.ptr);
     }
@@ -164,6 +177,7 @@ struct freelist_allocator {
     while (freelist.count() > 0) {
       _parent.deallocate(freelist.pop());
     }
+    _parent.~Parent();
   }
 
   size_t good_size(size_t size) {
@@ -175,16 +189,15 @@ struct freelist_allocator {
   }
   
   block allocate(size_t size) {
-    std::cout << "size: " << size << ", min: " << min_size << " ,max: " << max_size << "\n";
     if (size <= max_size && size >= min_size) {
-      std::cout << "allocing freelist-able size\n";
       if (freelist.count() > 0) {
 	return freelist.pop();
       } else {
 	return _parent.allocate(max_size);
       }
     } else {
-      return _parent.allocate(size);
+      // cannot allocate, return empty block
+      return block::empty();
     }
   }
 
@@ -192,6 +205,7 @@ struct freelist_allocator {
     std::cout << "block size: " << blk.size << "\n";
     if (blk.size == max_size) {
       std::cout << "using in freelist" << std::endl;
+      
       freelist.push(blk);
     } else {
       _parent.deallocate(blk);
@@ -232,6 +246,11 @@ struct affix_allocator {
     block blk = _parent.allocate(prefix_size + size + suffix_size);
 
     affixed_block ablk = {};
+
+    if (!blk) {
+      return ablk;
+    }
+
     ablk.size = good_size - prefix_size - suffix_size;
     ablk.prefix = (Prefix*)blk.ptr;
     ablk.ptr = (char*)ablk.prefix + prefix_size;
@@ -266,6 +285,9 @@ struct sized_allocator {
 
   void* allocate(size_t size) {
     typename affixed_alloc::affixed_block ablk = _parent.allocate(size);
+    if (!ablk) {
+      return nullptr;
+    }
     *ablk.prefix = ablk.size;
     return ablk.ptr;
   }
@@ -305,6 +327,9 @@ struct typed_allocator {
   T* allocate(Args&&... args) {
     // cout << "making a thing of size: " << sizeof(T) << endl;
     T* ptr = (T*)_parent.allocate(sizeof(T));
+    if (!ptr) {
+      return nullptr;
+    }
     new (ptr) T(std::forward<Args>(args)...);
     return ptr;
   }
