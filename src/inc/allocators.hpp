@@ -1,4 +1,4 @@
-
+typedef uint8_t byte;
 
 struct block {
   size_t size;
@@ -50,15 +50,17 @@ inline constexpr size_t round_to_alignment(size_t basis, size_t n) noexcept {
   return n + ((n % basis == 0) ? 0 : (basis - n % basis));
 }
 
+
 template<size_t MaxSize, size_t Alignment = 16>
 struct stack_allocator {
 
-  alignas(Alignment) char data[MaxSize];
+  alignas(Alignment) byte data[MaxSize];
 
-  char* top;
+  byte* top;
 
-  static constexpr size_t max_size = MaxSize;
   static constexpr size_t alignment = Alignment;
+  static constexpr size_t max_size = MaxSize;
+  static constexpr size_t min_size = alignment;
 
 
   stack_allocator() : top(data) {}
@@ -97,14 +99,14 @@ struct stack_allocator {
     
     //assert(is_last_used_block(blk) == true);
     if (is_last_used_block(blk)) {
-      top = static_cast<char*>(blk.ptr);
+      top = static_cast<byte*>(blk.ptr);
     } else {
       std::cout << "Stack free ignored, not top\n";
     }
   }
 
   bool is_last_used_block(const block& blk) {
-    return static_cast<char*>(blk.ptr) + blk.size == top;
+    return static_cast<byte*>(blk.ptr) + blk.size == top;
   }
 
   bool owns(block blk) {
@@ -131,16 +133,21 @@ struct stack {
 
   static constexpr size_t size = Size;
 
-  std::array<T, size> data;
-  size_t top;
+  // std::array<T, size> data;
+  typename std::aligned_storage<sizeof(T), alignof(T)>::type data[Size];
+  size_t top = 0;
 
   ~stack() {
     reset();
   }
 
+  T& operator[](size_t pos) const {
+    return *(T*)(data+pos);
+  }
+
   void push(T obj) {
     if (top + 1 < size) {
-      data[top] = obj;
+      (*this)[top] = obj;
       top++;
     }
   }
@@ -148,21 +155,21 @@ struct stack {
   T pop() {
     if (top > 0) {
       top--;
-      return data[top];
+      return (*this)[top];
     } else {
-      return data[0]; // @TODO: CHANGE THIS!!!
+      return (*this)[0]; // @TODO: CHANGE THIS!!!
     }
   }
 
   const T& peek() const {
     if (top > 0)
-      return data[top - 1];
+      return (*this)[top - 1];
   }
 
   void reset() {
     while (top > 0) {
       top--;
-      data[top].~T();
+      (*this)[top].~T();
     }
   }
 
