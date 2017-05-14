@@ -21,37 +21,23 @@
 using namespace std;
 
 struct A {
+
+  static constexpr bool DO_OUTPUT = false;
+  
   int a,b,c;
 
   A(int a, int b, int c) : a(a),b(b),c(c) {
-    cout << "new " << *this << endl;
+    if (DO_OUTPUT) cout << "new " << *this << endl;
   }
 
   ~A() {
-    cout << "I am ded" << endl;
+    if (DO_OUTPUT) cout << "I am ded" << endl;
   }
 
   friend std::ostream& operator<<(std::ostream& stream, const A& data) {
     stream << "A: {a:" << data.a << ", b:" << data.b << ", c:" << data.c << "}";
     return stream;
   }
-};
-
-template<typename T, typename Alloc>
-struct uptr {
-
-  T* ptr;
-  Alloc* allocator;
-
-  uptr(T* from, Alloc* alloc) {
-    ptr = from;
-    allocator = alloc;
-  }
-
-  ~uptr() {
-    allocator->deallocate(ptr);
-  }
-  
 };
 
 int main(int argc, char** argv) {
@@ -61,17 +47,32 @@ int main(int argc, char** argv) {
 
   // stack_allocator<512,alignof(A)> mtest{};
   // using alloc = typed_allocator<freelist_allocator<loud_allocator<malloc_allocator>, 10, 32, 32>>;
-  using alloc = typed_allocator<freelist_allocator<loud_allocator<stack_allocator<512,alignof(A)>>, 10, 128, 32>>;
+  using alloc = typed_allocator<
+    fallback_allocator<
+      bucketize_allocator<
+	freelist_allocator<loud_allocator<stack_allocator<512, alignof(A)>>, 16, 32, 32>,
+	16, 128, 32>,
+      malloc_allocator>>;
   // typed_allocator<loud_allocator<malloc_allocator>> mtest{};
 
   alloc mtest{};
+
+  // cout << mtest << endl;
 
 
   A* blkb = mtest.allocate<A>(3,2,1);
   A* arr = mtest.alloc_array<A>(5);
 
   {
-    auto test = uptr<A, alloc>(mtest.allocate<A>(5,5,5), &mtest);
+    {
+      auto test2 = std::unique_ptr<A, alloc_deleter<A,alloc>> (mtest.allocate<A>(6,6,6), { &mtest });
+
+      auto test3 = std::shared_ptr<A> (mtest.allocate<A>(8,8,8), alloc_deleter<A, alloc>(&mtest));
+    }
+
+    auto test4 = alloc_shared<A>(&mtest, 7,7,7);
+
+    auto test5 = alloc_unique<A>(&mtest, 9,9,9);
 
     if (arr) {
       for (size_t i = 0; i < 5; i++) {
@@ -83,6 +84,8 @@ int main(int argc, char** argv) {
       }
     }
 
+    cout << *test4 << endl;
+    
     cout << *blkb << endl;
 
   }

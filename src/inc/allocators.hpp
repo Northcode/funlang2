@@ -39,6 +39,11 @@ struct malloc_allocator {
   }
 
   size_t good_size(size_t size) { return size; }
+
+  friend std::ostream& operator<<(std::ostream& stream, const malloc_allocator& data) {
+    stream << "malloc_allocator";
+    return stream;
+  }
 };
 
 inline constexpr size_t round_to_alignment(size_t basis, size_t n) noexcept {
@@ -63,7 +68,7 @@ struct stack_allocator {
   }
 
   block allocate(size_t size) {
-    block result;
+    block result{};
 
     if (size == 0) return result;
 
@@ -86,13 +91,15 @@ struct stack_allocator {
       return;
     }
 
-    std::cout << "Stack freeing block: " << blk << "\n"
-	      << (void*)((char*)blk.ptr + blk.size) << "\n"
-	      << "Stack top: " << (void*)top << "\n";
+    // std::cout << "Stack freeing block: " << blk << "\n"
+    // 	      << (void*)((char*)blk.ptr + blk.size) << "\n"
+    // 	      << "Stack top: " << (void*)top << "\n";
     
     //assert(is_last_used_block(blk) == true);
     if (is_last_used_block(blk)) {
       top = static_cast<char*>(blk.ptr);
+    } else {
+      std::cout << "Stack free ignored, not top\n";
     }
   }
 
@@ -111,6 +118,10 @@ struct stack_allocator {
     std::cout << std::endl;
   }
 
+  friend std::ostream& operator<<(std::ostream& stream, const stack_allocator& data) {
+    stream << "stack_allocator {\n size: " << data.max_size << " ,\n align: " << data.alignment << "\n }";
+    return stream;
+  }
 
 };
 
@@ -163,9 +174,10 @@ struct stack {
 template<typename Parent, size_t MinSize, size_t MaxSize, size_t PoolSize>
 struct freelist_allocator {
 
-  static constexpr size_t min_size = MinSize;
-  static constexpr size_t max_size = MaxSize;
   static constexpr size_t pool_size = PoolSize;
+
+  size_t min_size = MinSize;
+  size_t max_size = MaxSize;
 
   Parent _parent;
   stack<pool_size, block> freelist;
@@ -178,6 +190,11 @@ struct freelist_allocator {
       _parent.deallocate(freelist.pop());
     }
     _parent.~Parent();
+  }
+
+  void set_bounds(size_t min, size_t max) {
+    min_size = min;
+    max_size = max;
   }
 
   size_t good_size(size_t size) {
@@ -212,12 +229,184 @@ struct freelist_allocator {
     }
   }
 
+  bool owns(block blk) {
+    return _parent.owns(blk);
+  }
+
   void deallocate_all() {
     freelist.reset();
+  }
+
+  friend std::ostream& operator<<(std::ostream& stream, const freelist_allocator<Parent, MinSize, MaxSize, PoolSize>& data) {
+    stream << "freelist_allocator {\n parent: " << data._parent << " ,\n min: " << data.min_size << " ,\n max: " << data.max_size << "\n }";
+    return stream;
   }
   
 };
 
+template<typename Primary, typename Fallback>
+struct fallback_allocator {
+
+  Primary _primary;
+  Fallback _fallback;
+
+  fallback_allocator() : _primary(), _fallback() {}
+  fallback_allocator(const Primary& prim, const Fallback& fall) : _primary(prim), _fallback(fall) {}
+  
+  block allocate(size_t size) {
+    std::cout << "TRYING PRIMARY\n";
+    block blk = _primary.allocate(size);
+    if (!blk) {
+      std::cout << " =========================== INVOKING FALLBACK ALLOCATOR!!! ================ \n";
+      blk = _fallback.allocate(size);
+    }
+    return blk;
+  }
+
+  void deallocate(block blk) {
+    if (_primary.owns(blk)) {
+      _primary.deallocate(blk);
+    } else {
+      _fallback.deallocate(blk);
+    }
+  }
+
+  bool owns(block blk) {
+    return _primary.owns(blk) || _fallback.owns(blk);
+  }
+
+  size_t good_size(size_t size) {
+    size_t s = _primary.good_size(size);
+    if (s == 0) {
+      s = _fallback.good_size(size);
+    }
+    return s;
+  }
+
+  friend std::ostream& operator<<(std::ostream& stream, const fallback_allocator<Primary, Fallback>& data) {
+    stream << "fallback_allocator {\n primary: " << data._primary << " ,\n fallback: " << data._fallback << "\n }";
+    return stream;
+  }
+};
+
+template<size_t Threshold, typename MinAlloc, typename MaxAlloc>
+struct segregation_allocator {
+
+  static constexpr size_t threshold = Threshold;
+
+  MinAlloc _minalloc;
+  MaxAlloc _maxalloc;
+
+  segregation_allocator() : _minalloc(), _maxalloc() {}
+  segregation_allocator(const MinAlloc& min, const MaxAlloc& max) : _minalloc(min), _maxalloc(max) {}
+
+  block allocate(size_t size) {
+    if (size <= threshold) {
+      std::cout << "ALLOCATING TO SMALLER ALLOCATOR\n";
+      return _minalloc.allocate(size);
+    } else {
+      std::cout << "ALLOCATING TO LARGER ALLOCATOR\n";
+      return _maxalloc.allocate(size);
+    }
+  }
+
+  void deallocate(block blk) {
+    if (_minalloc.owns(blk)) {
+      _minalloc.deallocate(blk);
+    } else {
+      _maxalloc.deallocate(blk);
+    }
+  }
+
+  bool owns(block blk) {
+    return _minalloc.owns(blk) || _maxalloc.owns(blk);
+  }
+
+  size_t good_size(size_t size) {
+    if (size < threshold) {
+      return _minalloc.good_size(size);
+    } else {
+      return _maxalloc.good_size(size);
+    }
+  }
+
+  friend std::ostream& operator<<(std::ostream& stream, const segregation_allocator<Threshold, MinAlloc, MaxAlloc>& data) {
+    stream << "segregation_allocator {\n threshold: " << threshold << " ,\n minalloc: " << data._minalloc << " ,\n maxalloc: " << data._maxalloc << "\n }";
+    return stream;
+  }
+};
+
+template<typename Allocator, size_t MinSize, size_t MaxSize, size_t StepSize>
+struct bucketize_allocator {
+
+  static constexpr size_t min_size = MinSize;
+  static constexpr size_t max_size = MaxSize;
+  static constexpr size_t step_size = StepSize;
+
+  static constexpr size_t num_of_buckets = (MaxSize - MinSize + 1) / StepSize;
+
+
+  std::array<Allocator, num_of_buckets> buckets;
+
+  bucketize_allocator() : buckets() {
+    for (size_t i = 0; i < num_of_buckets; i++) {
+      new (&buckets[i]) Allocator();
+      buckets[i].set_bounds(min_size + step_size * i, min_size + step_size * (i + 1));
+    }
+  }
+
+  Allocator* get_allocator_for(size_t size) {
+    assert (size >= min_size && size < max_size);
+
+    size_t index = 0;
+    for (index = 0; index < num_of_buckets; index++) {
+      if (size >= buckets[index].min_size && size < buckets[index].max_size) {
+	break;
+      }
+    }
+    
+    // std::cout << "using allocator " << index << ": " << buckets[index] << " , for size: " << size << "\n";
+
+    return &buckets[index];
+  }
+
+  size_t good_size(size_t size) {
+    if (size >= min_size && size < max_size)
+      return get_allocator_for(size)->good_size(size);
+    else
+      return 0;
+  }
+
+  block allocate(size_t size) {
+    if (size >= min_size && size < max_size)
+      return get_allocator_for(size)->allocate(size);
+    else
+      return {};
+  }
+
+  bool owns(block blk) {
+    for (size_t i = 0; i < num_of_buckets; i++) {
+      if (buckets[i].owns(blk)) return true;
+    }
+    return false;
+  }
+  
+  void deallocate(block blk) {
+    for (size_t i = 0; i < num_of_buckets; i++) {
+      if (buckets[i].owns(blk)) { buckets[i].deallocate(blk); return; }
+    }
+  }
+
+  friend std::ostream& operator<<(std::ostream& stream, const bucketize_allocator<Allocator, MinSize, MaxSize, StepSize>& data) {
+    stream << "bucketize_allocator { allocators: \n";
+    for (size_t i = 0; i < num_of_buckets; i++) {
+      stream << data.buckets[i] << " , \n";
+    }
+    stream << " }";
+    return stream;
+  }
+  
+};
 
 struct empty_affix {
 
@@ -270,6 +459,11 @@ struct affix_allocator {
   void dump() {
     _parent.dump();
   }
+
+  friend std::ostream& operator<<(std::ostream& stream, const affix_allocator<Parent, Prefix, Suffix>& data) {
+    stream << "affix_allocator {\n prefix: " << prefix_size << "\n , suffix: " << suffix_size << "\n , parent: " << data._parent << "\n}";
+    return stream;
+  }
   
 };
 
@@ -285,7 +479,7 @@ struct sized_allocator {
 
   void* allocate(size_t size) {
     typename affixed_alloc::affixed_block ablk = _parent.allocate(size);
-    if (!ablk) {
+    if (!(block)ablk) {
       return nullptr;
     }
     *ablk.prefix = ablk.size;
@@ -293,6 +487,7 @@ struct sized_allocator {
   }
 
   void deallocate(void* ptr) {
+    if (!ptr) return;
     typename affixed_alloc::affixed_block ablk;
     ablk.ptr = ptr;
     size_t* size = (size_t*)((char*)ptr - affixed_alloc::prefix_size);
@@ -309,7 +504,12 @@ struct sized_allocator {
   void dump() {
     _parent.dump();
   }
+
   
+  friend std::ostream& operator<<(std::ostream& stream, const sized_allocator<Parent>& data) {
+    stream << "sized_allocator {\n parent: " << data._parent << " \n}";
+    return stream;
+  }
 };
 
 
@@ -361,6 +561,11 @@ struct typed_allocator {
   void dump() {
     _parent.dump();
   }
+
+  friend std::ostream& operator<<(std::ostream& stream, const typed_allocator<Parent>& data) {
+    stream << "typed_allocator {\n parent: " << data._parent << "\n}";
+    return stream;
+  }
 };
 
 
@@ -395,4 +600,36 @@ struct loud_allocator {
   void dump() {
     _parent.dump();
   }
+  
+  friend std::ostream& operator<<(std::ostream& stream, const loud_allocator<Parent>& data) {
+    stream << "loud_allocator {\n parent: " << data._parent << "\n}";
+    return stream;
+  }
 };
+
+
+template<typename T, typename A>
+struct alloc_deleter {
+  A* alloc;
+
+  alloc_deleter(A* ptr) : alloc(ptr) {}
+
+  void operator()(T* ptr) {
+    alloc->deallocate(ptr);
+  }
+  
+};
+
+template<typename T, typename Allocator, typename ...Args>
+std::unique_ptr<T, alloc_deleter<T, Allocator>> alloc_unique(Allocator* _allc, Args&& ...args) {
+  return std::unique_ptr<T, alloc_deleter<T, Allocator>>
+    (_allc->template allocate<T>(std::forward<Args>(args)...),
+     { _allc });
+}
+
+template<typename T, typename Allocator, typename ...Args>
+std::shared_ptr<T> alloc_shared(Allocator* _allc, Args&& ...args) {
+  return std::shared_ptr<T>
+    (_allc->template allocate<T>(std::forward<Args>(args)...),
+     alloc_deleter<T, Allocator>(_allc));
+}
