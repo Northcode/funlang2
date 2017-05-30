@@ -1,3 +1,8 @@
+#ifndef ALLOCATORS_H
+#define ALLOCATORS_H
+
+#include <cassert>
+
 typedef uint8_t byte;
 
 struct block {
@@ -575,8 +580,6 @@ struct typed_allocator {
   }
 };
 
-
-
 template<typename Parent>
 struct loud_allocator {
 
@@ -640,3 +643,5 @@ std::shared_ptr<T> alloc_shared(Allocator* _allc, Args&& ...args) {
     (_allc->template allocate<T>(std::forward<Args>(args)...),
      alloc_deleter<T, Allocator>(_allc));
 }
+
+#endif

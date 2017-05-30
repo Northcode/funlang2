@@ -40,6 +40,71 @@ struct A {
   }
 };
 
+
+template<typename T, typename Alloc>
+struct counted_object {
+  T* object;
+  size_t uses;
+
+  Alloc* allocator;
+
+  counted_object(T* ptr, Alloc* allc) : object(ptr), uses(1), allocator(allc) {
+    cout << "constructing counted object\n";
+  }
+  ~counted_object() {
+    cout << "deleting counted object\n";
+    allocator->template deallocate(object); }
+};
+
+template<typename T, typename Alloc>
+struct sptr {
+  counted_object<T,Alloc>* ptr;
+
+  sptr(T* object, Alloc* allc) {
+    cout << "constructing sptr\n";
+    ptr = allc->template allocate<counted_object<T,Alloc>>(object, allc);
+  }
+
+  sptr(const sptr& from) : ptr(from.ptr) {
+    cout << "copying sptr\n";
+    ptr->uses++; }
+
+  sptr& operator=(const sptr& from) {
+    cout << "copying sptr\n";
+    this->ptr = from.ptr;
+    ptr->uses++;
+  }
+
+  ~sptr() {
+    cout << "deconstructing sptr\n";
+    ptr->uses--;
+    if (ptr->uses <= 0) {
+      Alloc* allc = ptr->allocator;
+      allc->template deallocate<counted_object<T, Alloc>>(ptr);
+    }
+  }
+
+  T* operator->() {
+    return ptr->object;
+  }
+
+  T& operator*() {
+    return *(ptr->object);
+  }
+};
+
+template<typename T, typename Allocator, typename ...Args>
+sptr<T, Allocator> alloc_sptr(Allocator* _allc, Args&& ...args) {
+  return {_allc->template allocate<T>(std::forward<Args>(args)...), _allc};
+}
+
+template<typename Allocator>
+void inc_A(sptr<A, Allocator> sp) {
+  sp->a++;
+}
+
+
+
 int main(int argc, char** argv) {
 
   // arena arr{};
@@ -48,63 +113,34 @@ int main(int argc, char** argv) {
   // stack_allocator<512,alignof(A)> mtest{};
   // using alloc = typed_allocator<freelist_allocator<loud_allocator<malloc_allocator>, 10, 32, 32>>;
   using alloc = typed_allocator<
-    fallback_allocator<
-      bucketize_allocator<
-	freelist_allocator<loud_allocator<stack_allocator<512, alignof(A)>>, 16, 32, 32>,
-	16, 128, 32>,
-      malloc_allocator>>;
+      segregation_allocator<
+	128,
+	bucketize_allocator<
+	  freelist_allocator<loud_allocator<stack_allocator<512, alignof(A)>>, 0, 32, 32>,
+	  0, 128, 32>,
+	loud_allocator<stack_allocator<4096, alignof(A)>>>
+    >;
   // typed_allocator<loud_allocator<malloc_allocator>> mtest{};
 
   alloc mtest{};
-
-  // cout << mtest << endl;
-
-
-  A* blkb = mtest.allocate<A>(3,2,1);
-  A* arr = mtest.alloc_array<A>(5);
-
+  
   {
+    vector<sptr<A, alloc>> vec{};
+    
+    auto test = alloc_sptr<A>(&mtest, 3,3,3);
+
     {
-      auto test2 = std::unique_ptr<A, alloc_deleter<A,alloc>> (mtest.allocate<A>(6,6,6), { &mtest });
+      auto test2 = test;
 
-      auto test3 = std::shared_ptr<A> (mtest.allocate<A>(8,8,8), alloc_deleter<A, alloc>(&mtest));
+      vec.push_back(test2);
+
+      inc_A(test2);
+
+      cout << *test2 << endl;
     }
 
-    auto test4 = alloc_shared<A>(&mtest, 7,7,7);
-
-    auto test5 = alloc_unique<A>(&mtest, 9,9,9);
-
-    if (arr) {
-      for (size_t i = 0; i < 5; i++) {
-	new (&arr[i]) A(i*1,i*2,i*3);
-      }
-    
-      for (size_t i = 0; i < 5; i++) {
-	cout << arr[i] << endl;
-      }
-    }
-
-    cout << *test4 << endl;
-    
-    cout << *blkb << endl;
-
+    cout << *test << endl;
   }
-
-  A* aptr = mtest.allocate<A>(1,2,3);
-
-
-  cout << *aptr << endl;
-
-  // mtest.dump();
-
-  if (arr) {
-    cout << "clearing array...\n";
-    mtest.dealloc_array(arr);
-  }
-  cout << "clearing A...\n";
-  mtest.deallocate(aptr);
-  cout << "clearing B...\n";
-  mtest.deallocate(blkb);
 
 
   // auto optint = std::experimental::make_optional<int>(6);

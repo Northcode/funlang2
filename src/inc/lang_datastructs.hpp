@@ -5,6 +5,8 @@
 #include <memory>
 #include <experimental/optional>
 
+#include "allocators.hpp"
+
 template<typename TFrom, typename Func>
 auto operator>>=(std::experimental::optional<TFrom> from, Func&& func) -> decltype(func(from.value())) {
   if (from) {
@@ -74,7 +76,7 @@ struct plist {
 };
 
 
-template<typename T, size_t BITS = 5>
+template<typename T, typename Allocator, size_t BITS = 5>
 struct pvec {
 
   static constexpr size_t bits = BITS;
@@ -124,7 +126,9 @@ struct pvec {
   struct internal_node_t : node_t {
     std::array<node, width> children;
 
-    internal_node_t() : node_t(node_type::internal) {}
+    internal_node_t() : node_t(node_type::internal) {
+      children.fill(nullptr);
+    }
   };
 
   struct leaf_node_t : node_t {
@@ -137,27 +141,49 @@ struct pvec {
   typedef std::shared_ptr<internal_node_t> internal_node;
   typedef std::shared_ptr<leaf_node_t> leaf_node;
 
-  inline internal_node make_internal() {
-    return std::make_shared<internal_node_t>();
-  }
-  inline leaf_node make_leaf() {
-    return std::make_shared<leaf_node_t>();
-  }
 
+  using allocator = Allocator;
 
   internal_node root;
   leaf_node tail;
   size_t count;
   size_t shift;
 
-  pvec(size_t count, size_t shift, internal_node root, leaf_node tail) {
+  allocator* _allocator;
+
+  inline internal_node make_internal() {
+    assert(_allocator);
+    std::cout << "make_internal()\n";
+    return alloc_shared<internal_node_t>(_allocator);
+  }
+
+  inline leaf_node make_leaf() {
+    assert(_allocator);
+    std::cout << "make_leaf()\n";
+    return alloc_shared<leaf_node_t>(_allocator);
+  }
+
+
+  pvec(size_t count, size_t shift, internal_node root, leaf_node tail, allocator* alloc) {
     this->shift = shift;
     this->root = root;
     this->tail = tail;
     this->count = count;
+    this->_allocator = alloc;
+    assert(_allocator);
   }
 
-  pvec() : pvec(0, bits, make_internal(), nullptr) {}
+  // pvec(size_t count, size_t shift, internal_node root, leaf_node tail) : pvec(count, shift, make_internal(), nullptr, allocator()) {
+  //   this->shift = shift;
+  //   this->root = root;
+  //   this->tail = tail;
+  //   this->count = count;
+  // }
+
+  pvec(allocator* alloc) : pvec(0, bits, nullptr, nullptr, alloc) {
+    this->root = make_internal();
+  }
+
   pvec(const pvec&) = default;
 
   leaf_node copy_leaf(const leaf_node& node) {
@@ -260,10 +286,10 @@ struct pvec {
 	leaf_node newtail = copy_leaf(this->tail);
 	newtail->values[key & index_mask] = item;
 
-	pvec newvec{count, shift, this->root, newtail};
+	pvec newvec{count, shift, this->root, newtail, _allocator};
 	return newvec;
       } else {
-	pvec newvec{count, shift, std::static_pointer_cast<internal_node_t>(do_assoc(shift, root, key, item)), tail};
+	pvec newvec{count, shift, std::static_pointer_cast<internal_node_t>(do_assoc(shift, root, key, item)), tail, _allocator};
 	return newvec;
       }
     } else if (key == count) {
@@ -280,7 +306,7 @@ struct pvec {
     pvec newvec{*this};
     // is space in tail
     if (i - tail_offset() < width) {
-      if (! this->tail) newvec.tail = std::make_shared<leaf_node_t>();
+      if (! this->tail) newvec.tail = make_leaf();
       // else newvec.tail = leaf_node(new leaf_node_t(*this->tail));
       else newvec.tail = copy_leaf(this->tail);
 
