@@ -115,7 +115,10 @@ struct sptr {
     cout << "deconstructing sptr\n";
     ptr->uses--;
     if (ptr->uses <= 0) {
+      allocator_type typ = ptr->a_type;
+      void* alloc = ptr->allocator;
       ptr->~counted_object<A>();
+      deallocate(typ, alloc, ptr);
     }
   }
 

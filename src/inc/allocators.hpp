@@ -70,6 +70,8 @@ struct stack_allocator {
 
   stack_allocator() : top(data) {}
 
+  ~stack_allocator() { if (top != data) { std::cout << std::distance(data, top) << " bytes unfreed!\n"; }}
+
   size_t good_size(size_t size) {
     return round_to_alignment(alignment, size);
   }
