@@ -20,6 +20,27 @@
 
 using namespace std;
 
+constexpr size_t alignment = 16;
+
+using alloc = typed_allocator<
+  segregation_allocator<
+    128,
+    bucketize_allocator<
+      freelist_allocator<loud_allocator<stack_allocator<512, alignment>>, 0, 32, 32>,
+      0, 128, 32>,
+    loud_allocator<stack_allocator<4096, alignment>>>
+  >;
+
+template<typename A, typename B>
+struct check_types {
+  static const bool value = false;
+};
+
+template<typename A>
+struct check_types<A,A> {
+  static const bool value = true;
+};
+
 struct A {
 
   static constexpr bool DO_OUTPUT = false;
@@ -40,29 +61,44 @@ struct A {
   }
 };
 
+enum class allocator_type {
+  main_alloc
+};
 
-template<typename T, typename Alloc>
+template<typename T>
+void deallocate(allocator_type alloc_type, void* allocator, T* ptr) {
+  if (alloc_type == allocator_type::main_alloc) {
+    alloc* m_alloc = (alloc*)allocator;
+    m_alloc->template deallocate<T>(ptr);
+  }
+}
+
+template<typename T>
 struct counted_object {
   T* object;
   size_t uses;
 
-  Alloc* allocator;
+  allocator_type a_type;
+  void* allocator;
 
-  counted_object(T* ptr, Alloc* allc) : object(ptr), uses(1), allocator(allc) {
+  counted_object(T* ptr, allocator_type a_type, void* allc) : object(ptr), uses(1), a_type(a_type), allocator(allc) {
     cout << "constructing counted object\n";
   }
+
   ~counted_object() {
     cout << "deleting counted object\n";
-    allocator->template deallocate(object); }
+    deallocate(a_type, allocator, object);
+  }
 };
 
-template<typename T, typename Alloc>
+template<typename T>
 struct sptr {
-  counted_object<T,Alloc>* ptr;
+  counted_object<T>* ptr;
 
-  sptr(T* object, Alloc* allc) {
+  template<typename Allocator>
+  sptr(T* object, allocator_type a_type, Allocator* allc) {
     cout << "constructing sptr\n";
-    ptr = allc->template allocate<counted_object<T,Alloc>>(object, allc);
+    ptr = allc->template allocate<counted_object<T>>(object, a_type, allc);
   }
 
   sptr(const sptr& from) : ptr(from.ptr) {
@@ -79,8 +115,7 @@ struct sptr {
     cout << "deconstructing sptr\n";
     ptr->uses--;
     if (ptr->uses <= 0) {
-      Alloc* allc = ptr->allocator;
-      allc->template deallocate<counted_object<T, Alloc>>(ptr);
+      ptr->~counted_object<A>();
     }
   }
 
@@ -94,12 +129,13 @@ struct sptr {
 };
 
 template<typename T, typename Allocator, typename ...Args>
-sptr<T, Allocator> alloc_sptr(Allocator* _allc, Args&& ...args) {
-  return {_allc->template allocate<T>(std::forward<Args>(args)...), _allc};
+sptr<T> alloc_sptr(Allocator* _allc, Args&& ...args) {
+  if (check_types<Allocator, alloc>::value) {
+    return {_allc->template allocate<T>(std::forward<Args>(args)...), allocator_type::main_alloc, _allc};
+  }
 }
 
-template<typename Allocator>
-void inc_A(sptr<A, Allocator> sp) {
+void inc_A(sptr<A> sp) {
   sp->a++;
 }
 
@@ -112,20 +148,12 @@ int main(int argc, char** argv) {
 
   // stack_allocator<512,alignof(A)> mtest{};
   // using alloc = typed_allocator<freelist_allocator<loud_allocator<malloc_allocator>, 10, 32, 32>>;
-  using alloc = typed_allocator<
-      segregation_allocator<
-	128,
-	bucketize_allocator<
-	  freelist_allocator<loud_allocator<stack_allocator<512, alignof(A)>>, 0, 32, 32>,
-	  0, 128, 32>,
-	loud_allocator<stack_allocator<4096, alignof(A)>>>
-    >;
   // typed_allocator<loud_allocator<malloc_allocator>> mtest{};
 
   alloc mtest{};
   
   {
-    vector<sptr<A, alloc>> vec{};
+    vector<sptr<A>> vec{};
     
     auto test = alloc_sptr<A>(&mtest, 3,3,3);
 
@@ -134,7 +162,6 @@ int main(int argc, char** argv) {
 
       vec.push_back(test2);
 
-      inc_A(test2);
 
       cout << *test2 << endl;
     }
