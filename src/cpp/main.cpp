@@ -78,7 +78,6 @@ int main( // int argc, char** argv
         auto test = alloc_sptr<A>(&mtest, 3, 3, 3);
 
         {
-            cout << test.ptr << endl;
             auto test2 = test;
 
             vec.push_back(test2);

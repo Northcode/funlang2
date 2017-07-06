@@ -15,7 +15,9 @@ struct check_types<A, A>
     static const bool value = true;
 };
 
-int mstoi(mystr s);
-double mstod(mystr s);
+int
+mstoi(mystr s);
+double
+mstod(mystr s);
 
 #endif

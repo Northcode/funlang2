@@ -23,25 +23,26 @@ struct counted_object
     ~counted_object()
     {
         // cout << "deleting counted object\n";
-        allocator->template deallocate(object); 
+        allocator->template deallocate(object);
     }
 };
 
 template<typename T, typename Allocator = std_alloc>
 struct sptr
 {
-  counted_object<T, Allocator>* ptr;
+    counted_object<T, Allocator>* ptr;
 
     sptr(T* object, Allocator* allc)
     {
         // cout << "constructing sptr\n";
-        ptr = allc->template allocate<counted_object<T,Allocator>>(object, allc);
+        ptr =
+          allc->template allocate<counted_object<T, Allocator>>(object, allc);
     }
 
     sptr(const sptr& from)
       : ptr(from.ptr)
     {
-      // cout << "copying sptr to pointer: " << from.ptr << " \n";
+        // cout << "copying sptr to pointer: " << from.ptr << " \n";
         ptr->uses++;
     }
 
@@ -57,10 +58,10 @@ struct sptr
         // cout << "deconstructing sptr\n";
         ptr->uses--;
         if (ptr->uses <= 0) {
-	    auto* alloc = ptr->allocator;
-	    ptr->~counted_object<T,Allocator>();
-	    alloc->template deallocate(ptr);
-	}
+            auto* alloc = ptr->allocator;
+            ptr->~counted_object<T, Allocator>();
+            alloc->template deallocate(ptr);
+        }
     }
 
     T* operator->() { return ptr->object; }
@@ -72,9 +73,7 @@ template<typename T, typename Allocator, typename... Args>
 sptr<T, Allocator>
 alloc_sptr(Allocator* _allc, Args&&... args)
 {
-  return { _allc->template allocate<T>(std::forward<Args>(args)...),
-      _allc };
+    return { _allc->template allocate<T>(std::forward<Args>(args)...), _allc };
 }
-
 
 #endif

@@ -8,10 +8,7 @@ constexpr size_t alignment = 16;
 using std_alloc = typed_allocator<segregation_allocator<
   128,
   bucketize_allocator<
-    freelist_allocator<stack_allocator<512, alignment>,
-                       0,
-                       32,
-                       32>,
+    freelist_allocator<stack_allocator<512, alignment>, 0, 32, 32>,
     0,
     128,
     32>,
