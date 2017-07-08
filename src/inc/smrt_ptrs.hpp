@@ -23,10 +23,7 @@ struct counted_object
     {
     }
 
-    ~counted_object()
-    {
-        allocator->template deallocate(object);
-    }
+    ~counted_object() { allocator->template deallocate(object); }
 };
 
 template<typename U, typename Allocator>
@@ -46,11 +43,16 @@ struct sptr
     template<typename U>
     sptr(U* object, Allocator* allocator)
     {
-        counted_object_ptr =
-          (counted_object<T, Allocator>*)
-            allocator->template allocate<counted_object<U, Allocator>>(
-              object, allocator);
-        deleter = &sptr_deleter<U, Allocator>;
+        if (!object) {
+            counted_object_ptr = nullptr;
+            deleter = nullptr;
+        } else {
+            counted_object_ptr =
+              (counted_object<T, Allocator>*)
+                allocator->template allocate<counted_object<U, Allocator>>(
+                  object, allocator);
+            deleter = &sptr_deleter<U, Allocator>;
+        }
     }
 
     sptr(const sptr& from)
@@ -120,7 +122,7 @@ struct sptr
         ns.counted_object_ptr =
           (counted_object<U, Allocator>*)counted_object_ptr;
         ns.deleter = deleter;
-	++ns.counted_object_ptr->uses;
+        ++ns.counted_object_ptr->uses;
         return ns;
     }
 
