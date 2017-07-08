@@ -2,6 +2,8 @@
 #define UTIL_HPP
 
 #include "mystr.hpp"
+#include "execinfo.h"
+#include <string>
 
 template<typename A, typename B>
 struct check_types
@@ -19,5 +21,11 @@ int
 mstoi(mystr s);
 double
 mstod(mystr s);
+
+std::string get_caller();
+
+std::string get_caller(size_t levels);
+
+std::string get_backtrace_str();
 
 #endif

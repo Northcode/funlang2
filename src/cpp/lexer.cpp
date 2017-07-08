@@ -298,8 +298,6 @@ lexer::scan_char()
         case PUSH: {
             token cur;
 
-            // std::cout << "read: " << buffer << "\n";
-
             cur.type = buf_type;
             _arena->append_char(&buffer, '\0');
 

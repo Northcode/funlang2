@@ -9,7 +9,6 @@
 #include "mystr.hpp"
 
 constexpr long PAGE_SIZE = 1000 * 1000 * 4; // 4 MB
-// constexpr long PAGE_SIZE = 80;
 
 struct arena_page
 {
@@ -38,14 +37,12 @@ struct arena_page
         assert(data);
         for (size_t i = 0; i < first_unused; i++) {
             if (i % 10 == 0) {
-                // printf("\n");
                 std::cout << std::endl;
             }
             if (isprint(data[i]))
                 printf("%c ", data[i]);
             else
                 printf("%X ", data[i]);
-            // std::cout << c;
         }
         std::cout << "remaining data empty.. ";
     }

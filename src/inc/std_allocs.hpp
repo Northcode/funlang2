@@ -8,23 +8,23 @@ constexpr size_t alignment = 16;
 using std_alloc = typed_allocator<segregation_allocator<
   128,
   bucketize_allocator<
-    freelist_allocator<stack_allocator<512, alignment>, 0, 32, 32>,
+    freelist_allocator<stack_allocator<8000, alignment>, 0, 32, 32>,
     0,
     128,
     32>,
-  stack_allocator<4096, alignment>>>;
+  malloc_allocator>>;
 
 using verbose_std_alloc = typed_allocator<segregation_allocator<
   128,
   bucketize_allocator<
-    freelist_allocator<loud_allocator<stack_allocator<512, alignment>>,
+    freelist_allocator<loud_allocator<stack_allocator<8024, alignment>, 1>,
                        0,
                        32,
                        32>,
     0,
     128,
     32>,
-  loud_allocator<stack_allocator<4096, alignment>>>>;
+  loud_allocator<stack_allocator<40096, alignment>, 2>>>;
 
 using malloc_alloc = typed_allocator<malloc_allocator>;
 

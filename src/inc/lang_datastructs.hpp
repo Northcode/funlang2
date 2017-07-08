@@ -6,6 +6,8 @@
 #include <memory>
 
 #include "allocators.hpp"
+#include "std_allocs.hpp"
+#include "smrt_ptrs.hpp"
 
 template<typename TFrom, typename Func>
 auto
@@ -94,6 +96,7 @@ struct plist
     }
 };
 
+
 template<typename T, typename Allocator, size_t BITS = 5>
 struct pvec
 {
@@ -119,6 +122,7 @@ struct pvec
         {
         }
 
+
       public:
         node_t(node_t& n) = default;
 
@@ -128,14 +132,12 @@ struct pvec
         friend std::ostream& operator<<(std::ostream& stream, node_t& data)
         {
             if (data.type == node_type::leaf) {
-                // stream << "LEAF ----------------------------- \n";
                 leaf_node_t* nodeptr = (leaf_node_t*)&data;
                 for (key_type i = 0; i < nodeptr->count; i++) {
                     stream << nodeptr->values[i] << " ";
                 }
             } else {
                 internal_node_t* nodeptr = (internal_node_t*)&data;
-                // stream << "\n NODE ----------------------------- \n";
                 for (auto i : nodeptr->children) {
                     if (i)
                         stream << *i << " ";
@@ -145,16 +147,16 @@ struct pvec
         }
     };
 
-    typedef std::shared_ptr<node_t> node;
+    typedef sptr<node_t, Allocator> node;
 
     struct internal_node_t : node_t
     {
         std::array<node, width> children;
 
         internal_node_t()
-          : node_t(node_type::internal)
+	    : node_t(node_type::internal)
         {
-            children.fill(nullptr);
+            children.fill(node::empty());
         }
     };
 
@@ -163,13 +165,13 @@ struct pvec
         std::array<T, width> values;
 
         leaf_node_t()
-          : node_t(node_type::leaf)
+	    : node_t(node_type::leaf)
         {
         }
     };
 
-    typedef std::shared_ptr<internal_node_t> internal_node;
-    typedef std::shared_ptr<leaf_node_t> leaf_node;
+    typedef sptr<internal_node_t, Allocator> internal_node;
+    typedef sptr<leaf_node_t, Allocator> leaf_node;
 
     using allocator = Allocator;
 
@@ -183,15 +185,16 @@ struct pvec
     inline internal_node make_internal()
     {
         assert(_allocator);
-        std::cout << "make_internal()\n";
-        return alloc_shared<internal_node_t>(_allocator);
+        // std::cout << "make_internal()\n";
+        return alloc_sptr<internal_node_t, Allocator>(_allocator);
     }
 
     inline leaf_node make_leaf()
     {
         assert(_allocator);
-        std::cout << "make_leaf()\n";
-        return alloc_shared<leaf_node_t>(_allocator);
+        // std::cout << "make_leaf()\n";
+	sptr<leaf_node_t, Allocator> result{alloc_sptr<leaf_node_t, Allocator>(_allocator)};
+        return result;
     }
 
     pvec(size_t count,
@@ -208,16 +211,8 @@ struct pvec
         assert(_allocator);
     }
 
-    // pvec(size_t count, size_t shift, internal_node root, leaf_node tail) :
-    // pvec(count, shift, make_internal(), nullptr, allocator()) {
-    //   this->shift = shift;
-    //   this->root = root;
-    //   this->tail = tail;
-    //   this->count = count;
-    // }
-
     pvec(allocator* alloc)
-      : pvec(0, bits, nullptr, nullptr, alloc)
+	: pvec(0, bits, internal_node::empty(), leaf_node::empty(), alloc)
     {
         this->root = make_internal();
     }
@@ -308,10 +303,14 @@ struct pvec
             to_insert = tail;
         } else {
             assert(parent->type == node_type::internal);
-            internal_node child = std::static_pointer_cast<internal_node_t>(
-              parent->children[subidx]);
-            to_insert = child ? push_tail(level - bits, child, tail)
-                              : new_path(level - bits, tail);
+            internal_node child = parent->children[subidx];
+
+	    if (child) {
+		to_insert = push_tail(level - bits, child, tail);
+	    }
+	    else {
+		to_insert = new_path(level - bits, tail);
+	    }
         }
         ret->children[subidx] = to_insert;
         return ret;
@@ -369,11 +368,12 @@ struct pvec
         pvec newvec{ *this };
         // is space in tail
         if (i - tail_offset() < width) {
-            if (!this->tail)
+            if (!this->tail) {
                 newvec.tail = make_leaf();
-            // else newvec.tail = leaf_node(new leaf_node_t(*this->tail));
-            else
+            }
+	    else {
                 newvec.tail = copy_leaf(this->tail);
+	    }
 
             newvec.tail->values[newvec.tail->count] = item;
             newvec.tail->count++;
@@ -384,7 +384,7 @@ struct pvec
             internal_node newroot;
             size_t newshift = shift;
             // check for root overflow
-            if ((count >> bits) > (1 << shift)) {
+            if ((count >> bits) > (1u << shift)) {
                 newroot = make_internal();
 
                 newroot->children[0] = root;

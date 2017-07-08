@@ -1,7 +1,13 @@
 #ifndef ALLOCATORS_H
 #define ALLOCATORS_H
 
+#include <algorithm>
 #include <cassert>
+#include <iostream>
+#include <vector>
+
+#include "alloc_debug.hpp"
+#include "util.hpp"
 
 typedef uint8_t byte;
 
@@ -40,9 +46,9 @@ struct malloc_allocator
 
     void deallocate(block blk) { free(blk.ptr); }
 
-    bool owns(block blk) { return true; }
+    bool owns(block blk) const { return true; }
 
-    size_t good_size(size_t size) { return size; }
+    size_t good_size(size_t size) const { return size; }
 
     friend std::ostream& operator<<(std::ostream& stream,
                                     const malloc_allocator& data)
@@ -78,11 +84,12 @@ struct stack_allocator
     ~stack_allocator()
     {
         if (top != data) {
-            std::cout << std::distance(data, top) << " bytes unfreed!\n";
+            // std::cout << std::distance(data, top)
+            //           << " bytes unfreed in stack allocator!\n";
         }
     }
 
-    size_t good_size(size_t size)
+    size_t good_size(size_t size) const
     {
         return round_to_alignment(alignment, size);
     }
@@ -104,6 +111,12 @@ struct stack_allocator
 
         top += align_len;
 
+        auto* tracker = get_allocation_tracker();
+        if (tracker) {
+            tracker->track_allocation(
+              result.size, result.ptr, get_backtrace_str());
+        }
+
         return result;
     }
 
@@ -114,29 +127,29 @@ struct stack_allocator
             return;
         }
 
-        // std::cout << "Stack freeing block: " << blk << "\n"
-        // 	      << (void*)((char*)blk.ptr + blk.size) << "\n"
-        // 	      << "Stack top: " << (void*)top << "\n";
-
-        // assert(is_last_used_block(blk) == true);
         if (is_last_used_block(blk)) {
             top = static_cast<byte*>(blk.ptr);
+
+            auto* tracker = get_allocation_tracker();
+            if (tracker) {
+                tracker->free_allocation(blk.ptr);
+            }
         } else {
-            std::cout << "Stack free ignored, not top\n";
+            // std::cout << "Stack free ignored, not top\n";
         }
     }
 
-    bool is_last_used_block(const block& blk)
+    bool is_last_used_block(const block& blk) const
     {
         return static_cast<byte*>(blk.ptr) + blk.size == top;
     }
 
-    bool owns(block blk)
+    bool owns(block blk) const
     {
         return blk.ptr >= data && blk.ptr < data + max_size;
     }
 
-    void dump()
+    void dump() const
     {
         for (size_t i = 0; i < std::distance(data, top); i++) {
             std::cout << (int)data[i] << " ";
@@ -159,7 +172,6 @@ struct stack
 
     static constexpr size_t size = Size;
 
-    // std::array<T, size> data;
     typename std::aligned_storage<sizeof(T), alignof(T)>::type data[Size];
     size_t top = 0;
 
@@ -181,7 +193,8 @@ struct stack
             top--;
             return (*this)[top];
         } else {
-            return (*this)[0]; // @TODO: CHANGE THIS!!!
+            std::cerr << "Popping from empty stack!\n";
+            abort();
         }
     }
 
@@ -239,7 +252,7 @@ struct freelist_allocator
         max_size = max;
     }
 
-    size_t good_size(size_t size)
+    size_t good_size(size_t size) const
     {
         if (size <= max_size && size >= min_size) {
             return _parent.good_size(max_size);
@@ -257,24 +270,20 @@ struct freelist_allocator
                 return _parent.allocate(max_size);
             }
         } else {
-            // cannot allocate, return empty block
             return block::empty();
         }
     }
 
     void deallocate(block blk)
     {
-        // std::cout << "block size: " << blk.size << "\n";
         if (blk.size == max_size) {
-            // std::cout << "using in freelist" << std::endl;
-
             freelist.push(blk);
         } else {
             _parent.deallocate(blk);
         }
     }
 
-    bool owns(block blk) { return _parent.owns(blk); }
+    bool owns(block blk) const { return _parent.owns(blk); }
 
     void deallocate_all() { freelist.reset(); }
 
@@ -309,11 +318,8 @@ struct fallback_allocator
 
     block allocate(size_t size)
     {
-        // std::cout << "TRYING PRIMARY\n";
         block blk = _primary.allocate(size);
         if (!blk) {
-            // std::cout << " =========================== INVOKING FALLBACK "
-            // "ALLOCATOR!!! ================ \n";
             blk = _fallback.allocate(size);
         }
         return blk;
@@ -328,9 +334,12 @@ struct fallback_allocator
         }
     }
 
-    bool owns(block blk) { return _primary.owns(blk) || _fallback.owns(blk); }
+    bool owns(block blk) const
+    {
+        return _primary.owns(blk) || _fallback.owns(blk);
+    }
 
-    size_t good_size(size_t size)
+    size_t good_size(size_t size) const
     {
         size_t s = _primary.good_size(size);
         if (s == 0) {
@@ -372,10 +381,8 @@ struct segregation_allocator
     block allocate(size_t size)
     {
         if (size <= threshold) {
-            // std::cout << "ALLOCATING TO SMALLER ALLOCATOR\n";
             return _minalloc.allocate(size);
         } else {
-            // std::cout << "ALLOCATING TO LARGER ALLOCATOR\n";
             return _maxalloc.allocate(size);
         }
     }
@@ -384,14 +391,24 @@ struct segregation_allocator
     {
         if (_minalloc.owns(blk)) {
             _minalloc.deallocate(blk);
-        } else {
+        } else if (_maxalloc.owns(blk)) {
             _maxalloc.deallocate(blk);
+        } else {
+            // std::cout << "WARNING, NO ONE OWNS BLOCK: " << blk << "\n";
         }
     }
 
-    bool owns(block blk) { return _minalloc.owns(blk) || _maxalloc.owns(blk); }
+    bool owns(block blk) const
+    {
+      if (blk.size < threshold) {
+	return _minalloc.owns(blk);
+      }
+      else {
+        return _maxalloc.owns(blk);
+      }
+    }
 
-    size_t good_size(size_t size)
+    size_t good_size(size_t size) const
     {
         if (size < threshold) {
             return _minalloc.good_size(size);
@@ -433,7 +450,7 @@ struct bucketize_allocator
         }
     }
 
-    Allocator* get_allocator_for(size_t size)
+    const Allocator* get_allocator_for(size_t size) const
     {
         assert(size >= min_size && size < max_size);
 
@@ -445,14 +462,10 @@ struct bucketize_allocator
             }
         }
 
-        // std::cout << "using allocator " << index << ": " << buckets[index] <<
-        // " ,
-        // for size: " << size << "\n";
-
         return &buckets[index];
     }
 
-    size_t good_size(size_t size)
+    size_t good_size(size_t size) const
     {
         if (size >= min_size && size < max_size)
             return get_allocator_for(size)->good_size(size);
@@ -463,12 +476,13 @@ struct bucketize_allocator
     block allocate(size_t size)
     {
         if (size >= min_size && size < max_size)
-            return get_allocator_for(size)->allocate(size);
+            return const_cast<Allocator*>(get_allocator_for(size))
+              ->allocate(size);
         else
             return {};
     }
 
-    bool owns(block blk)
+    bool owns(block blk) const
     {
         for (size_t i = 0; i < num_of_buckets; i++) {
             if (buckets[i].owns(blk))
@@ -532,13 +546,26 @@ struct affix_allocator
     {
     }
 
+    size_t good_size(size_t size) const
+    {
+        return _parent.good_size(prefix_size + size + suffix_size);
+    }
+
+    bool owns(affixed_block ablk) const
+    {
+        block blk;
+        blk.size = ablk.size + prefix_size + suffix_size;
+        blk.ptr = (void*)ablk.prefix;
+
+        return _parent.owns(blk);
+    }
+
     affixed_block allocate(size_t size)
     {
-        // cout << "Affix sizes: " << prefix_size << "," << size << "," <<
-        // suffix_size << endl;
-        size_t good_size = _parent.good_size(prefix_size + size + suffix_size);
+        size_t size_to_allocate = prefix_size + size + suffix_size;
+        size_t alloc_good_size = good_size(size_to_allocate);
 
-        block blk = _parent.allocate(prefix_size + size + suffix_size);
+        block blk = _parent.allocate(size_to_allocate);
 
         affixed_block ablk = {};
 
@@ -546,7 +573,7 @@ struct affix_allocator
             return ablk;
         }
 
-        ablk.size = good_size - prefix_size - suffix_size;
+        ablk.size = alloc_good_size - prefix_size - suffix_size;
         ablk.prefix = (Prefix*)blk.ptr;
         ablk.ptr = (char*)ablk.prefix + prefix_size;
         ablk.suffix = (Suffix*)((char*)ablk.ptr + ablk.size);
@@ -616,7 +643,7 @@ struct sized_allocator
         _parent.deallocate(ablk);
     }
 
-    size_t sizeof_alloc(void* ptr)
+    size_t sizeof_alloc(void* ptr) const
     {
         return *((size_t*)((char*)ptr - affixed_alloc::prefix_size));
     }
@@ -651,7 +678,6 @@ struct typed_allocator
     template<typename T, typename... Args>
     T* allocate(Args&&... args)
     {
-        // cout << "making a thing of size: " << sizeof(T) << endl;
         T* ptr = (T*)_parent.allocate(sizeof(T));
         if (!ptr) {
             return nullptr;
@@ -670,20 +696,14 @@ struct typed_allocator
     template<typename T>
     T* alloc_array(size_t size)
     {
-        // cout << "allocating array of size: " << size << " = " << size *
-        // sizeof(T)
-        // << endl;
         return (T*)(_parent.allocate(size * sizeof(T)));
     }
 
     template<typename T>
     void dealloc_array(T* arr)
     {
-        // cout << sized_alloc::affixed_alloc::prefix_size << endl;
-        // size_t arr_size = *(size_t*)((char*)arr -
-        // sized_alloc::affixed_alloc::prefix_size);
         size_t arr_size = _parent.sizeof_alloc(arr);
-        // cout << "array size: " << arr_size << endl;
+
         for (size_t i = 0; i < arr_size && i < 5; i++) {
             arr[i].~T();
         }
@@ -700,7 +720,7 @@ struct typed_allocator
     }
 };
 
-template<typename Parent>
+template<typename Parent, size_t TAG = 0>
 struct loud_allocator
 {
 
@@ -715,65 +735,41 @@ struct loud_allocator
     {
     }
 
-    size_t good_size(size_t size) { return _parent.good_size(size); }
+    size_t good_size(size_t size) const { return _parent.good_size(size); }
 
     block allocate(size_t size)
     {
-        std::cout << "allocating: " << size << "!\n";
+        std::cout << "TAG: " << TAG << " allocating: " << size << "!\n";
         return _parent.allocate(size);
     }
 
     void deallocate(block blk)
     {
-        std::cout << "deallocating: " << blk.ptr << ", " << blk.size << "!\n";
+        std::cout << "TAG: " << TAG << " deallocating: " << blk.ptr << ", "
+                  << blk.size << "!\n";
         return _parent.deallocate(blk);
     }
 
-    bool owns(block blk)
+    bool owns(block blk) const
     {
-        std::cout << "checking ownership of: " << blk.ptr << ", " << blk.size
-                  << "!\n";
+        std::cout << "TAG: " << TAG << " checking ownership of: " << blk.ptr
+                  << ", " << blk.size << " ";
+
+        bool result = _parent.owns(blk);
+        std::cout << (result ? " we own this block."
+                             : " we do not own this block")
+                  << "\n";
         return _parent.owns(blk);
     }
 
     void dump() { _parent.dump(); }
 
     friend std::ostream& operator<<(std::ostream& stream,
-                                    const loud_allocator<Parent>& data)
+                                    const loud_allocator<Parent, TAG>& data)
     {
         stream << "loud_allocator {\n parent: " << data._parent << "\n}";
         return stream;
     }
 };
-
-template<typename T, typename A>
-struct alloc_deleter
-{
-    A* alloc;
-
-    alloc_deleter(A* ptr)
-      : alloc(ptr)
-    {
-    }
-
-    void operator()(T* ptr) { alloc->deallocate(ptr); }
-};
-
-template<typename T, typename Allocator, typename... Args>
-std::unique_ptr<T, alloc_deleter<T, Allocator>>
-alloc_unique(Allocator* _allc, Args&&... args)
-{
-    return std::unique_ptr<T, alloc_deleter<T, Allocator>>(
-      _allc->template allocate<T>(std::forward<Args>(args)...), { _allc });
-}
-
-template<typename T, typename Allocator, typename... Args>
-std::shared_ptr<T>
-alloc_shared(Allocator* _allc, Args&&... args)
-{
-    return std::shared_ptr<T>(
-      _allc->template allocate<T>(std::forward<Args>(args)...),
-      alloc_deleter<T, Allocator>(_allc));
-}
 
 #endif
