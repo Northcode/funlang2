@@ -99,5 +99,18 @@ int main( // int argc, char** argv
     // get_sptr_tracker()->dump_stats();
     // get_allocation_tracker()->dump_stats();
 
+	plist<A, s_alloc> tplist(&mtest);
+
+	auto plist2 = tplist.conj({3,3,3});
+	auto plist3 = tplist.conj({4,4,4});
+
+	for (int i = 0; i < 200; i++) {
+	    plist2 = plist2.conj({i,i,i});
+	}
+
+	cout << tplist << endl;
+	cout << plist2 << endl;
+	cout << plist3 << endl;
+
     return 0;
 }

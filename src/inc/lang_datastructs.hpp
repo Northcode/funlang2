@@ -21,45 +21,61 @@ operator>>=(std::experimental::optional<TFrom> from, Func&& func)
     }
 }
 
-template<typename T>
+template<typename T, typename Allocator>
 struct plist
 {
+	struct node_t;
+	typedef sptr<node_t, Allocator> node;
 
-    struct node
+    using allocator = Allocator;
+
+    struct node_t
     {
         T item;
-        std::shared_ptr<node> rest;
+        node rest;
         size_t count;
 
-        node(T item, const std::shared_ptr<node>& rest, size_t count)
-          : item(item)
-          , rest(rest)
-          , count(count)
-        {
-        }
-        node(const node&) = default;
+		node_t()
+			: item()
+			, rest()
+			, count(0)
+		{
+		}
 
-        friend std::ostream& operator<<(std::ostream& stream, node& data)
-        {
-            stream << data.item;
-            if (data.rest) {
-                stream << " " << *data.rest;
-            }
-            return stream;
-        }
-    };
+		node_t(const node_t&) = default;
 
-    std::shared_ptr<node> first;
+		friend std::ostream& operator<<(std::ostream& stream, node_t& data)
+		{
+			stream << data.item;
+			if (data.rest) {
+				stream << " " << *data.rest;
+			}
+			return stream;
+		}
+	};
 
-    plist()
-      : first(nullptr)
+	node first;
+    allocator* _allocator;
+
+	plist(allocator* allocator)
+		: first()
+		, _allocator(allocator)
+	{
+	}
+
+	plist(node first, allocator* allocator)
+		: first(first)
+		, _allocator(allocator)
     {
     }
-    plist(std::shared_ptr<node> first)
-      : first(first)
-    {
-    }
+
     plist(const plist&) = default;
+
+	node make_node() {
+		assert(_allocator);
+		// std::cout << "make_node()\n";
+		return alloc_sptr<node_t, Allocator>(_allocator);
+	}
 
     const T& peek()
     {
@@ -78,11 +94,15 @@ struct plist
 
     plist conj(T item)
     {
+		node newnode = make_node();
+		newnode->item = item;
         if (first) {
-            return plist(std::make_shared<node>(item, first, first->count + 1));
+			newnode->rest = first;
+			newnode->count = first->count + 1;
         } else {
-            return plist(std::make_shared<node>(item, nullptr, 1));
+			newnode->count = 0;
         }
+		return plist(newnode, _allocator);
     }
 
     friend std::ostream& operator<<(std::ostream& stream, plist& data)
