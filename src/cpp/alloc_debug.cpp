@@ -11,7 +11,7 @@ void init_sptr_tracker() {
 }
 
 sptr_tracker* get_sptr_tracker() {
-  assert(std_sptr_tracker);
+  if (!std_sptr_tracker) return nullptr;
   return std_sptr_tracker.get();
 }
 
@@ -26,6 +26,6 @@ init_allocation_tracker()
 allocation_tracker*
 get_allocation_tracker()
 {
-  assert(std_allocation_tracker);
+  if (!std_sptr_tracker) return nullptr;
   return std_allocation_tracker.get();
 }

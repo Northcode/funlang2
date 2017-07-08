@@ -103,8 +103,10 @@ struct stack_allocator
 
         const auto align_len = round_to_alignment(alignment, size);
 
-        if (align_len + top > data + MaxSize)
+        if (align_len + top > data + MaxSize) {
+	  std::cout << "STACK FULL\n";
             return result;
+	}
 
         result.ptr = top;
         result.size = align_len;

@@ -65,28 +65,29 @@ inc_A(sptr<A, Allocator> sp)
 int main( // int argc, char** argv
   )
 {
-    init_allocation_tracker();
-    init_sptr_tracker();
+
+    // init_allocation_tracker();
+    // init_sptr_tracker();
 
     using s_alloc = std_alloc;
 
     s_alloc mtest{};
 
     {
-	pvec<A, s_alloc> tpvec{&mtest};
+    	pvec<A, s_alloc> tpvec{&mtest};
 
-	auto pvec2 = tpvec.conj({3,3,3});
-	auto pvec3 = pvec2.conj({4,4,4});
+    	auto pvec2 = tpvec.conj({3,3,3});
+    	auto pvec3 = pvec2.conj({4,4,4});
 
-	for (int i = 0; i < 200; i++) {
-	    pvec2 = pvec2.conj({i,i,i});
-	}
+    	for (int i = 0; i < 200; i++) {
+    	    pvec2 = pvec2.conj({i,i,i});
+    	}
 
-	pvec3 = pvec2.conj({50,50,50});
+    	pvec3 = pvec2.conj({50,50,50});
 
-	for (int i = 0; i < 200; i++) {
-	  pvec3 = pvec3.conj({i*2, i*2, i*2});
-	}
+    	for (int i = 0; i < 200; i++) {
+    	  pvec3 = pvec3.conj({i*2, i*2, i*2});
+    	}
 
         {
             cout << pvec2 << endl;
@@ -98,7 +99,7 @@ int main( // int argc, char** argv
 
     // get_sptr_tracker()->dump_stats();
     // get_allocation_tracker()->dump_stats();
-
+    {
 	plist<A, s_alloc> tplist(&mtest);
 
 	auto plist2 = tplist.conj({3,3,3});
@@ -111,6 +112,7 @@ int main( // int argc, char** argv
 	cout << tplist << endl;
 	cout << plist2 << endl;
 	cout << plist3 << endl;
+    }
 
     return 0;
 }

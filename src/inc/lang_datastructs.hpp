@@ -6,8 +6,8 @@
 #include <memory>
 
 #include "allocators.hpp"
-#include "std_allocs.hpp"
 #include "smrt_ptrs.hpp"
+#include "std_allocs.hpp"
 
 template<typename TFrom, typename Func>
 auto
@@ -24,8 +24,8 @@ operator>>=(std::experimental::optional<TFrom> from, Func&& func)
 template<typename T, typename Allocator>
 struct plist
 {
-	struct node_t;
-	typedef sptr<node_t, Allocator> node;
+    struct node_t;
+    typedef sptr<node_t, Allocator> node;
 
     using allocator = Allocator;
 
@@ -33,49 +33,51 @@ struct plist
     {
         T item;
         node rest;
-        size_t count;
 
-		node_t()
-			: item()
-			, rest()
-			, count(0)
-		{
-		}
+        node_t()
+          : item()
+          , rest()
+        {
+        }
 
-		node_t(const node_t&) = default;
+        node_t(const node_t&) = default;
 
-		friend std::ostream& operator<<(std::ostream& stream, node_t& data)
-		{
-			stream << data.item;
-			if (data.rest) {
-				stream << " " << *data.rest;
-			}
-			return stream;
-		}
-	};
+        friend std::ostream& operator<<(std::ostream& stream, node_t& data)
+        {
+            stream << data.item;
+            if (data.rest) {
+                stream << " " << *data.rest;
+            }
+            return stream;
+        }
+    };
 
-	node first;
+    node first;
     allocator* _allocator;
+    size_t count;
 
-	plist(allocator* allocator)
-		: first()
-		, _allocator(allocator)
-	{
-	}
+    plist(allocator* allocator)
+      : first()
+      , _allocator(allocator)
+      , count(0)
+    {
+    }
 
-	plist(node first, allocator* allocator)
-		: first(first)
-		, _allocator(allocator)
+    plist(node first, allocator* allocator, size_t count)
+      : first(first)
+      , _allocator(allocator)
+      , count(count)
     {
     }
 
     plist(const plist&) = default;
 
-	node make_node() {
-		assert(_allocator);
-		// std::cout << "make_node()\n";
-		return alloc_sptr<node_t, Allocator>(_allocator);
-	}
+    node make_node()
+    {
+        assert(_allocator);
+        // std::cout << "make_node()\n";
+        return alloc_sptr<node_t, Allocator>(_allocator);
+    }
 
     const T& peek()
     {
@@ -94,15 +96,16 @@ struct plist
 
     plist conj(T item)
     {
-		node newnode = make_node();
-		newnode->item = item;
+        node newnode = make_node();
+        assert(newnode);
+        newnode->item = item;
+        size_t newcount = 0;
         if (first) {
-			newnode->rest = first;
-			newnode->count = first->count + 1;
+            newnode->rest = first;
+            newcount = count + 1;
         } else {
-			newnode->count = 0;
         }
-		return plist(newnode, _allocator);
+        return plist(newnode, _allocator, newcount);
     }
 
     friend std::ostream& operator<<(std::ostream& stream, plist& data)
@@ -115,7 +118,6 @@ struct plist
         return stream;
     }
 };
-
 
 template<typename T, typename Allocator, size_t BITS = 5>
 struct pvec
@@ -141,7 +143,6 @@ struct pvec
           : type(type)
         {
         }
-
 
       public:
         node_t(node_t& n) = default;
@@ -174,7 +175,7 @@ struct pvec
         std::array<node, width> children;
 
         internal_node_t()
-	    : node_t(node_type::internal)
+          : node_t(node_type::internal)
         {
             children.fill(node::empty());
         }
@@ -185,7 +186,7 @@ struct pvec
         std::array<T, width> values;
 
         leaf_node_t()
-	    : node_t(node_type::leaf)
+          : node_t(node_type::leaf)
         {
         }
     };
@@ -213,7 +214,8 @@ struct pvec
     {
         assert(_allocator);
         // std::cout << "make_leaf()\n";
-	sptr<leaf_node_t, Allocator> result{alloc_sptr<leaf_node_t, Allocator>(_allocator)};
+        sptr<leaf_node_t, Allocator> result{ alloc_sptr<leaf_node_t, Allocator>(
+          _allocator) };
         return result;
     }
 
@@ -232,7 +234,7 @@ struct pvec
     }
 
     pvec(allocator* alloc)
-	: pvec(0, bits, internal_node::empty(), leaf_node::empty(), alloc)
+      : pvec(0, bits, internal_node::empty(), leaf_node::empty(), alloc)
     {
         this->root = make_internal();
     }
@@ -325,12 +327,11 @@ struct pvec
             assert(parent->type == node_type::internal);
             internal_node child = parent->children[subidx];
 
-	    if (child) {
-		to_insert = push_tail(level - bits, child, tail);
-	    }
-	    else {
-		to_insert = new_path(level - bits, tail);
-	    }
+            if (child) {
+                to_insert = push_tail(level - bits, child, tail);
+            } else {
+                to_insert = new_path(level - bits, tail);
+            }
         }
         ret->children[subidx] = to_insert;
         return ret;
@@ -390,10 +391,9 @@ struct pvec
         if (i - tail_offset() < width) {
             if (!this->tail) {
                 newvec.tail = make_leaf();
-            }
-	    else {
+            } else {
                 newvec.tail = copy_leaf(this->tail);
-	    }
+            }
 
             newvec.tail->values[newvec.tail->count] = item;
             newvec.tail->count++;
