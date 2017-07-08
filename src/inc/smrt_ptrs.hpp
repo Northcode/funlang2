@@ -120,6 +120,7 @@ struct sptr
         ns.counted_object_ptr =
           (counted_object<U, Allocator>*)counted_object_ptr;
         ns.deleter = deleter;
+	++ns.counted_object_ptr->uses;
         return ns;
     }
 

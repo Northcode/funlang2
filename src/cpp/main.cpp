@@ -78,13 +78,19 @@ int main( // int argc, char** argv
 	auto pvec2 = tpvec.conj({3,3,3});
 	auto pvec3 = pvec2.conj({4,4,4});
 
-	for (int i = 0; i < 50; i++) {
-	    cout << "I IS: " << i << endl;
+	for (int i = 0; i < 200; i++) {
 	    pvec2 = pvec2.conj({i,i,i});
+	}
+
+	pvec3 = pvec2.conj({50,50,50});
+
+	for (int i = 0; i < 200; i++) {
+	  pvec3 = pvec3.conj({i*2, i*2, i*2});
 	}
 
         {
             cout << pvec2 << endl;
+            cout << pvec3 << endl;
         }
 
         cout << tpvec << endl;

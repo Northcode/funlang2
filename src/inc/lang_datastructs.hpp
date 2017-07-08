@@ -109,8 +109,8 @@ struct pvec
 
     enum class node_type
     {
-        internal,
-        leaf
+        internal = 0,
+        leaf = 1
     };
 
     class node_t
