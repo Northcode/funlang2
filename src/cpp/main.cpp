@@ -7,17 +7,10 @@
 
 #include <experimental/optional>
 
-#include "mystr.hpp"
-#include "string_arena.hpp"
-
-#include "lexer.hpp"
-#include "parser.hpp"
-#include "token.hpp"
-
-#include "allocators.hpp"
+#include "affix_allocator.hpp"
+#include "stack_allocator.hpp"
+#include "mallocator.hpp"
 #include "lang_datastructs.hpp"
-#include "smrt_ptrs.hpp"
-#include "std_allocs.hpp"
 
 using namespace std;
 
@@ -55,64 +48,35 @@ struct A
     }
 };
 
-template<typename Allocator>
-void
-inc_A(sptr<A, Allocator> sp)
-{
-    sp->a++;
-}
-
 int main( // int argc, char** argv
   )
 {
 
-    // init_allocation_tracker();
-    // init_sptr_tracker();
+  using myalloc = alb::affix_allocator<alb::mallocator, size_t>;
 
-    using s_alloc = std_alloc;
+  myalloc allocator;
 
-    s_alloc mtest{};
+  std::unique_ptr<A, alb::deleter<myalloc>> Auptr = alb::make_unique<A>(allocator, 1, 2, 3);
+  std::shared_ptr<A> Asptr = alb::make_shared<A>(allocator, 2, 3, 4);
 
-    {
-    	pvec<A, s_alloc> tpvec{&mtest};
+  pvec<A, myalloc> pvec1{&allocator};
 
-    	auto pvec2 = tpvec.conj({3,3,3});
-    	auto pvec3 = pvec2.conj({4,4,4});
+  pvec1 = pvec1.conj({0,1,1}).conj({0,2,2});
 
-    	for (int i = 0; i < 200; i++) {
-    	    pvec2 = pvec2.conj({i,i,i});
-    	}
+  auto pvec2 = pvec1.conj({1,1,1}).conj({2,2,2}).conj({3,3,3});
 
-    	pvec3 = pvec2.conj({50,50,50});
+  plist<A, myalloc> plist1{&allocator};
 
-    	for (int i = 0; i < 200; i++) {
-    	  pvec3 = pvec3.conj({i*2, i*2, i*2});
-    	}
+  plist1 = plist1.conj({0,1,1}).conj({0,2,2});
 
-        {
-            cout << pvec2 << endl;
-            cout << pvec3 << endl;
-        }
+  cout << *Auptr << endl;
+  cout << *Asptr << endl;
+  cout << pvec1 << endl;
+  cout << pvec2 << endl;
 
-        cout << tpvec << endl;
-    }
+  cout << plist1 << endl;
 
-    // get_sptr_tracker()->dump_stats();
-    // get_allocation_tracker()->dump_stats();
-    {
-	plist<A, s_alloc> tplist(&mtest);
-
-	auto plist2 = tplist.conj({3,3,3});
-	auto plist3 = tplist.conj({4,4,4});
-
-	for (int i = 0; i < 200; i++) {
-	    plist2 = plist2.conj({i,i,i});
-	}
-
-	cout << tplist << endl;
-	cout << plist2 << endl;
-	cout << plist3 << endl;
-    }
-
-    return 0;
+  
+  
+  return 0;
 }

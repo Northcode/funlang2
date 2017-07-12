@@ -5,9 +5,7 @@
 #include <iostream>
 #include <memory>
 
-#include "allocators.hpp"
-#include "smrt_ptrs.hpp"
-#include "std_allocs.hpp"
+#include "allocator_base.hpp"
 
 template<typename TFrom, typename Func>
 auto
@@ -25,7 +23,7 @@ template<typename T, typename Allocator>
 struct plist
 {
     struct node_t;
-    typedef sptr<node_t, Allocator> node;
+  typedef std::shared_ptr<node_t> node;
 
     using allocator = Allocator;
 
@@ -75,8 +73,7 @@ struct plist
     node make_node()
     {
         assert(_allocator);
-        // std::cout << "make_node()\n";
-        return alloc_sptr<node_t, Allocator>(_allocator);
+	return alb::make_shared<node_t>(*_allocator);
     }
 
     const T& peek()
@@ -168,7 +165,7 @@ struct pvec
         }
     };
 
-    typedef sptr<node_t, Allocator> node;
+  typedef std::shared_ptr<node_t> node;
 
     struct internal_node_t : node_t
     {
@@ -177,7 +174,7 @@ struct pvec
         internal_node_t()
           : node_t(node_type::internal)
         {
-            children.fill(node::empty());
+            children.fill(nullptr);
         }
     };
 
@@ -191,8 +188,8 @@ struct pvec
         }
     };
 
-    typedef sptr<internal_node_t, Allocator> internal_node;
-    typedef sptr<leaf_node_t, Allocator> leaf_node;
+  typedef std::shared_ptr<internal_node_t> internal_node;
+  typedef std::shared_ptr<leaf_node_t> leaf_node;
 
     using allocator = Allocator;
 
@@ -206,17 +203,13 @@ struct pvec
     inline internal_node make_internal()
     {
         assert(_allocator);
-        // std::cout << "make_internal()\n";
-        return alloc_sptr<internal_node_t, Allocator>(_allocator);
+	return alb::make_shared<internal_node_t>(*_allocator);
     }
 
     inline leaf_node make_leaf()
     {
         assert(_allocator);
-        // std::cout << "make_leaf()\n";
-        sptr<leaf_node_t, Allocator> result{ alloc_sptr<leaf_node_t, Allocator>(
-          _allocator) };
-        return result;
+	return alb::make_shared<leaf_node_t>(*_allocator);
     }
 
     pvec(size_t count,
@@ -234,7 +227,7 @@ struct pvec
     }
 
     pvec(allocator* alloc)
-      : pvec(0, bits, internal_node::empty(), leaf_node::empty(), alloc)
+      : pvec(0, bits, nullptr, nullptr, alloc)
     {
         this->root = make_internal();
     }
@@ -325,7 +318,7 @@ struct pvec
             to_insert = tail;
         } else {
             assert(parent->type == node_type::internal);
-            internal_node child = parent->children[subidx];
+            internal_node child = std::static_pointer_cast<internal_node_t>(parent->children[subidx]);
 
             if (child) {
                 to_insert = push_tail(level - bits, child, tail);

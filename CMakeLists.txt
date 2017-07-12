@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.7)
 project(funlang)
 
 include_directories(src/inc)
+include_directories(src/alb)
+include_directories(src/alb/internal)
 
 file(GLOB SOURCES "src/cpp/*.cpp")
 
