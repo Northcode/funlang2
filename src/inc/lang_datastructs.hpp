@@ -61,7 +61,7 @@ struct plist
     {
     }
 
-    plist(node first, allocator* allocator, size_t count)
+    plist(node first, size_t count, allocator* allocator)
       : first(first)
       , _allocator(allocator)
       , count(count)
@@ -69,6 +69,14 @@ struct plist
     }
 
     plist(const plist&) = default;
+
+	static plist create(allocator* allocator, std::initializer_list<T> list) {
+		plist res{allocator};
+		for (auto& item : list) {
+			res = res.conj(item);
+		}
+		return res;
+	}
 
     node make_node()
     {
@@ -85,7 +93,7 @@ struct plist
     plist pop()
     {
         if (first) {
-            return plist(first->rest);
+            return plist(first->rest, count - 1, _allocator);
         } else {
             return *this;
         }
@@ -102,7 +110,7 @@ struct plist
             newcount = count + 1;
         } else {
         }
-        return plist(newnode, _allocator, newcount);
+        return plist(newnode, newcount, _allocator);
     }
 
     friend std::ostream& operator<<(std::ostream& stream, plist& data)
@@ -115,6 +123,11 @@ struct plist
         return stream;
     }
 };
+
+template<typename T, typename Allocator>
+plist<T, Allocator> create_plist(Allocator* allocator, std::initializer_list<T> list) {
+	return plist<T, Allocator>::create(allocator, list);
+}
 
 template<typename T, typename Allocator, size_t BITS = 5>
 struct pvec
@@ -442,7 +455,7 @@ struct pvec
             std::copy(this->tail->values.begin(),
                       this->tail->values.begin() + this->tail->count - 1,
                       newtail->values.begin());
-	    newtail->count = this->tail->count - 1;
+            newtail->count = this->tail->count - 1;
             return { count - 1, shift, root, newtail, _allocator };
         }
         auto newtail =
