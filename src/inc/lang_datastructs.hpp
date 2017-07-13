@@ -23,7 +23,7 @@ template<typename T, typename Allocator>
 struct plist
 {
     struct node_t;
-  typedef std::shared_ptr<node_t> node;
+    typedef std::shared_ptr<node_t> node;
 
     using allocator = Allocator;
 
@@ -73,7 +73,7 @@ struct plist
     node make_node()
     {
         assert(_allocator);
-	return alb::make_shared<node_t>(*_allocator);
+        return alb::make_shared<node_t>(*_allocator);
     }
 
     const T& peek()
@@ -165,11 +165,13 @@ struct pvec
         }
     };
 
-  typedef std::shared_ptr<node_t> node;
+    typedef std::shared_ptr<node_t> node;
 
     struct internal_node_t : node_t
     {
-        std::array<node, width> children;
+        using coll = std::array<node, width>;
+
+        coll children;
 
         internal_node_t()
           : node_t(node_type::internal)
@@ -180,7 +182,9 @@ struct pvec
 
     struct leaf_node_t : node_t
     {
-        std::array<T, width> values;
+        using coll = std::array<T, width>;
+
+        coll values;
 
         leaf_node_t()
           : node_t(node_type::leaf)
@@ -188,8 +192,8 @@ struct pvec
         }
     };
 
-  typedef std::shared_ptr<internal_node_t> internal_node;
-  typedef std::shared_ptr<leaf_node_t> leaf_node;
+    typedef std::shared_ptr<internal_node_t> internal_node;
+    typedef std::shared_ptr<leaf_node_t> leaf_node;
 
     using allocator = Allocator;
 
@@ -203,13 +207,13 @@ struct pvec
     inline internal_node make_internal()
     {
         assert(_allocator);
-	return alb::make_shared<internal_node_t>(*_allocator);
+        return alb::make_shared<internal_node_t>(*_allocator);
     }
 
     inline leaf_node make_leaf()
     {
         assert(_allocator);
-	return alb::make_shared<leaf_node_t>(*_allocator);
+        return alb::make_shared<leaf_node_t>(*_allocator);
     }
 
     pvec(size_t count,
@@ -318,7 +322,8 @@ struct pvec
             to_insert = tail;
         } else {
             assert(parent->type == node_type::internal);
-            internal_node child = std::static_pointer_cast<internal_node_t>(parent->children[subidx]);
+            internal_node child = std::static_pointer_cast<internal_node_t>(
+              parent->children[subidx]);
 
             if (child) {
                 to_insert = push_tail(level - bits, child, tail);
@@ -338,7 +343,7 @@ struct pvec
             return ret;
         } else {
             internal_node ret = copy_internal(parent);
-            int subindex = (key >> level) & index_mask;
+            key_type subindex = (key >> level) & index_mask;
             ret->children[subindex] =
               do_assoc(level - bits,
                        std::static_pointer_cast<internal_node_t>(parent)
@@ -377,7 +382,7 @@ struct pvec
     pvec conj(T item)
     {
 
-        int i = count;
+        size_t i = count;
 
         pvec newvec{ *this };
         // is space in tail
@@ -421,6 +426,62 @@ struct pvec
             newvec.shift = newshift;
 
             return newvec;
+        }
+    }
+
+    pvec pop()
+    {
+        if (count == 0) {
+            throw std::runtime_error("Cannot pop an empty vector!");
+        }
+        if (count == 1) {
+            return { _allocator };
+        }
+        if (count - tail_offset() > 1) {
+            leaf_node newtail = make_leaf();
+            std::copy(this->tail->values.begin(),
+                      this->tail->values.begin() + this->tail->count - 1,
+                      newtail->values.begin());
+	    newtail->count = this->tail->count - 1;
+            return { count - 1, shift, root, newtail, _allocator };
+        }
+        auto newtail =
+          std::static_pointer_cast<leaf_node_t>(node_for(count - 2));
+
+        internal_node newroot = pop_tail(shift, root);
+        size_t newshift = shift;
+        if (!newroot) {
+            newroot = make_internal();
+        }
+        if (shift > bits && !newroot->children[1]) {
+            newroot =
+              std::static_pointer_cast<internal_node_t>(newroot->children[0]);
+            newshift -= bits;
+        }
+        return { count - 1, newshift, newroot, newtail, _allocator };
+    }
+
+    internal_node pop_tail(size_t level, internal_node node)
+    {
+        key_type subidx = ((count - 2) >> level) & index_mask;
+        if (level > bits) {
+            internal_node newchild =
+              pop_tail(level - bits,
+                       std::static_pointer_cast<internal_node_t>(
+                         node->children[subidx]));
+            if (!newchild && subidx == 0) {
+                return nullptr;
+            } else {
+                auto ret = copy_internal(node);
+                ret->children[subidx] = newchild;
+                return ret;
+            }
+        } else if (subidx == 0) {
+            return nullptr;
+        } else {
+            auto ret = copy_internal(node);
+            ret->children[subidx] = nullptr;
+            return ret;
         }
     }
 

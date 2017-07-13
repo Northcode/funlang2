@@ -65,6 +65,8 @@ int main( // int argc, char** argv
 
   auto pvec2 = pvec1.conj({1,1,1}).conj({2,2,2}).conj({3,3,3});
 
+  auto pvec3 = pvec2.pop();
+
   plist<A, myalloc> plist1{&allocator};
 
   plist1 = plist1.conj({0,1,1}).conj({0,2,2});
@@ -73,6 +75,7 @@ int main( // int argc, char** argv
   cout << *Asptr << endl;
   cout << pvec1 << endl;
   cout << pvec2 << endl;
+  cout << pvec3 << endl;
 
   cout << plist1 << endl;
 
