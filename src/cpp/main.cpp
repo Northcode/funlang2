@@ -7,6 +7,7 @@
 
 #include <experimental/optional>
 
+#include "allocator_base.hpp"
 #include "affix_allocator.hpp"
 #include "stack_allocator.hpp"
 #include "mallocator.hpp"
@@ -72,6 +73,8 @@ int main( // int argc, char** argv
   plist1 = plist1.conj({0,1,1}).conj({0,2,2});
 
   auto plist2 = plist1.pop();
+
+  auto plist3 = plist2.conj({3,4,5});
 
   cout << *Auptr << endl;
   cout << *Asptr << endl;
