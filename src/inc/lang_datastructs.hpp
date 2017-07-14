@@ -70,13 +70,14 @@ struct plist
 
     plist(const plist&) = default;
 
-	static plist create(allocator* allocator, std::initializer_list<T> list) {
-		plist res{allocator};
-		for (auto& item : list) {
-			res = res.conj(item);
-		}
-		return res;
-	}
+    static plist create(allocator* allocator, std::initializer_list<T> list)
+    {
+        plist res{ allocator };
+        for (auto& item : list) {
+            res = res.conj(item);
+        }
+        return res;
+    }
 
     node make_node()
     {
@@ -125,8 +126,10 @@ struct plist
 };
 
 template<typename T, typename Allocator>
-plist<T, Allocator> create_plist(Allocator* allocator, std::initializer_list<T> list) {
-	return plist<T, Allocator>::create(allocator, list);
+plist<T, Allocator>
+create_plist(Allocator* allocator, std::initializer_list<T> list)
+{
+    return plist<T, Allocator>::create(allocator, list);
 }
 
 template<typename T, typename Allocator, size_t BITS = 5>
@@ -250,6 +253,15 @@ struct pvec
     }
 
     pvec(const pvec&) = default;
+
+    static pvec create(allocator* allocator, std::initializer_list<T> list)
+    {
+	pvec res{ allocator };
+	for (auto& item : list) {
+	    res = res.conj(item);
+        }
+        return res;
+    }
 
     leaf_node copy_leaf(const leaf_node& node)
     {

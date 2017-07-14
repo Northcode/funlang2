@@ -64,7 +64,7 @@ int main( // int argc, char** argv
 
   pvec1 = pvec1.conj({0,1,1}).conj({0,2,2});
 
-  auto pvec2 = pvec1.conj({1,1,1}).conj({2,2,2}).conj({3,3,3});
+  auto pvec2 = pvec<A, myalloc>::create(&allocator, {{0,1,1},{0,1,2},{0,1,3},{0,1,4}});
 
   auto pvec3 = pvec2.pop();
 
