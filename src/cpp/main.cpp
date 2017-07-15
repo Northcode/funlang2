@@ -68,6 +68,10 @@ int main( // int argc, char** argv
 
   auto pvec3 = pvec2.pop();
 
+  auto tvec1 = pvec3.as_transient();
+
+
+
   plist<A, myalloc> plist1 = create_plist<A>(&allocator, {{1,1,1}, {2,2,2}, {3,3,3}});
 
   plist1 = plist1.conj({0,1,1}).conj({0,2,2});

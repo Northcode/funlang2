@@ -220,13 +220,13 @@ struct pvec
 
     allocator* _allocator;
 
-    inline internal_node make_internal()
+    static inline internal_node make_internal(allocator* _allocator)
     {
         assert(_allocator);
         return alb::make_shared<internal_node_t>(*_allocator);
     }
 
-    inline leaf_node make_leaf()
+    static inline leaf_node make_leaf(allocator* _allocator)
     {
         assert(_allocator);
         return alb::make_shared<leaf_node_t>(*_allocator);
@@ -249,7 +249,7 @@ struct pvec
     pvec(allocator* alloc)
       : pvec(0, bits, nullptr, nullptr, alloc)
     {
-        this->root = make_internal();
+        this->root = make_internal(alloc);
     }
 
     pvec(const pvec&) = default;
@@ -263,32 +263,32 @@ struct pvec
         return res;
     }
 
-    leaf_node copy_leaf(const leaf_node& node)
+    static leaf_node copy_leaf(allocator* _allocator, const leaf_node& node)
     {
-        leaf_node newnode = make_leaf();
+        leaf_node newnode = make_leaf(_allocator);
         newnode->values = node->values;
         newnode->count = node->count;
         return newnode;
     }
 
-    internal_node copy_internal(const internal_node& node)
+    static internal_node copy_internal(allocator* _allocator, const internal_node& node)
     {
-        internal_node newnode = make_internal();
+        internal_node newnode = make_internal(_allocator);
         newnode->children = node->children;
         newnode->count = node->count;
         return newnode;
     }
 
-    inline internal_node copy_internal(const node& node)
+    static inline internal_node copy_internal(allocator* _allocator, const node& node)
     {
         internal_node casted = std::static_pointer_cast<internal_node_t>(node);
-        return copy_internal(casted);
+        return copy_internal(_allocator, casted);
     }
 
-    inline leaf_node copy_leaf(const node& node)
+    static inline leaf_node copy_leaf(allocator* _allocator, const node& node)
     {
         leaf_node casted = std::static_pointer_cast<leaf_node_t>(node);
-        return copy_leaf(casted);
+        return copy_leaf(_allocator, casted);
     }
 
     node node_for(key_type key)
@@ -333,7 +333,7 @@ struct pvec
     {
         if (level == 0)
             return to_node;
-        internal_node new_node = make_internal();
+        internal_node new_node = make_internal(_allocator);
         new_node->children[0] = new_path(level - bits, to_node);
         return new_node;
     }
@@ -341,7 +341,7 @@ struct pvec
     internal_node push_tail(size_t level, internal_node parent, leaf_node tail)
     {
         size_t subidx = ((count - 1) >> level) & index_mask;
-        internal_node ret = copy_internal(parent);
+        internal_node ret = copy_internal(_allocator, parent);
         node to_insert;
         if (level == bits) {
             to_insert = tail;
@@ -363,11 +363,11 @@ struct pvec
     node do_assoc(size_t level, node parent, key_type key, T item)
     {
         if (level == 0) {
-            leaf_node ret = copy_leaf(parent);
+            leaf_node ret = copy_leaf(_allocator, parent);
             ret->values[key & index_mask] = item;
             return ret;
         } else {
-            internal_node ret = copy_internal(parent);
+            internal_node ret = copy_internal(_allocator, parent);
             key_type subindex = (key >> level) & index_mask;
             ret->children[subindex] =
               do_assoc(level - bits,
@@ -383,7 +383,7 @@ struct pvec
     {
         if (key >= 0 && key < count) {
             if (key >= tail_offset()) {
-                leaf_node newtail = copy_leaf(this->tail);
+                leaf_node newtail = copy_leaf(_allocator, this->tail);
                 newtail->values[key & index_mask] = item;
 
                 pvec newvec{ count, shift, this->root, newtail, _allocator };
@@ -413,9 +413,9 @@ struct pvec
         // is space in tail
         if (i - tail_offset() < width) {
             if (!this->tail) {
-                newvec.tail = make_leaf();
+                newvec.tail = make_leaf(_allocator);
             } else {
-                newvec.tail = copy_leaf(this->tail);
+                newvec.tail = copy_leaf(_allocator, this->tail);
             }
 
             newvec.tail->values[newvec.tail->count] = item;
@@ -428,7 +428,7 @@ struct pvec
             size_t newshift = shift;
             // check for root overflow
             if ((count >> bits) > (1u << shift)) {
-                newroot = make_internal();
+                newroot = make_internal(_allocator);
 
                 newroot->children[0] = root;
                 newroot->children[1] = new_path(shift, tail);
@@ -439,7 +439,7 @@ struct pvec
                 newroot = push_tail(shift, root, tail);
             }
 
-            leaf_node newtail = make_leaf();
+            leaf_node newtail = make_leaf(_allocator);
             newtail->values[0] = item;
             newtail->count++;
 
@@ -463,7 +463,7 @@ struct pvec
             return { _allocator };
         }
         if (count - tail_offset() > 1) {
-            leaf_node newtail = make_leaf();
+            leaf_node newtail = make_leaf(_allocator);
             std::copy(this->tail->values.begin(),
                       this->tail->values.begin() + this->tail->count - 1,
                       newtail->values.begin());
@@ -476,7 +476,7 @@ struct pvec
         internal_node newroot = pop_tail(shift, root);
         size_t newshift = shift;
         if (!newroot) {
-            newroot = make_internal();
+            newroot = make_internal(_allocator);
         }
         if (shift > bits && !newroot->children[1]) {
             newroot =
@@ -497,14 +497,14 @@ struct pvec
             if (!newchild && subidx == 0) {
                 return nullptr;
             } else {
-                auto ret = copy_internal(node);
+                auto ret = copy_internal(_allocator, node);
                 ret->children[subidx] = newchild;
                 return ret;
             }
         } else if (subidx == 0) {
             return nullptr;
         } else {
-            auto ret = copy_internal(node);
+            auto ret = copy_internal(_allocator, node);
             ret->children[subidx] = nullptr;
             return ret;
         }
@@ -523,6 +523,62 @@ struct pvec
         }
 
         return stream << "]";
+    }
+
+
+    struct tvec {
+	size_t count;
+	size_t shift;
+	internal_node root;
+	leaf_node tail;
+
+	allocator* _allocator;
+
+	tvec(size_t count, size_t shift, internal_node root, leaf_node tail, allocator* _allocator)
+	    : count(count)
+	    , shift(shift)
+	    , root(root)
+	    , tail(tail)
+	    , _allocator(_allocator)
+	{}
+
+	tvec(const pvec& v) : tvec(v.count, v.shift, copy_internal(v._allocator,v.root), copy_leaf(v._allocator,v.tail), v._allocator)
+	{}
+
+	void ensure_editable()
+	{
+	    // assert some atomic bool 
+	}
+
+	void disable_edit()
+	{
+	    // set editable bool to false
+	}
+
+	size_t tail_offset() const
+	{
+	    if (count < width) {
+		return 0;
+	    }
+	    return ((count - 1) >> bits) << 5;
+	}
+
+	pvec to_persistent()
+	{
+	    ensure_editable();
+
+	    disable_edit();
+	    leaf_node trimmed_tail = make_leaf(_allocator);
+	    std::copy(tail->values.begin(), tail->values.begin() + (count - tail_offset()), trimmed_tail->begin());
+	    return {count, shift, root, trimmed_tail};
+	}
+	
+    };
+
+
+    tvec as_transient()
+    {
+	return {*this};
     }
 };
 
