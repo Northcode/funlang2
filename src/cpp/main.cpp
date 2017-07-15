@@ -84,8 +84,6 @@ int main( // int argc, char** argv
 
   auto plist3 = plist2.conj({3,4,5});
 
-  cout << *Auptr << endl;
-  cout << *Asptr << endl;
   cout << pvec1 << endl;
   cout << pvec2 << endl;
   cout << pvec3 << endl;

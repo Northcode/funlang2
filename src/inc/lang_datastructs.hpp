@@ -258,11 +258,12 @@ struct pvec
 
     static pvec create(allocator* allocator, std::initializer_list<T> list)
     {
-	pvec res{ allocator };
+	tvec res{ allocator };
 	for (auto& item : list) {
-	    res = res.conj(item);
+	    res.conj(item);
         }
-        return res;
+	pvec result = res.to_persistent();
+	return result;
     }
 
     static leaf_node copy_leaf(allocator* _allocator, const leaf_node& node)
@@ -543,6 +544,11 @@ struct pvec
 	    , tail(tail)
 	    , _allocator(_allocator)
 	{}
+
+	tvec(allocator* _allocator)
+	    : tvec(0, bits, make_internal(_allocator), make_leaf(_allocator), _allocator)
+	{}
+	     
 
 	tvec(const pvec& v) : tvec(v.count, v.shift, copy_internal(v._allocator,v.root), copy_leaf(v._allocator,v.tail), v._allocator)
 	{}
