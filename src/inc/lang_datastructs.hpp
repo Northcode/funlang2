@@ -167,16 +167,18 @@ struct pvec
         {
             if (data.type == node_type::leaf) {
                 leaf_node_t* nodeptr = (leaf_node_t*)&data;
+		assert(nodeptr);
                 for (key_type i = 0; i < nodeptr->count; i++) {
                     stream << nodeptr->values[i] << " ";
                 }
             } else {
                 internal_node_t* nodeptr = (internal_node_t*)&data;
-                for (auto i : nodeptr->children) {
-                    if (i)
-                        stream << *i << " ";
-                }
-            }
+		assert(nodeptr);
+		for (key_type i = 0; i < nodeptr->count; ++i) {
+		    assert(nodeptr->children[i]);
+		    stream << *(nodeptr->children[i]) << " ";
+		}
+	    }
             return stream;
         }
     };
@@ -329,12 +331,12 @@ struct pvec
         return lookup_node->values[key & index_mask];
     }
 
-    node new_path(size_t level, node to_node)
+    static node new_path(size_t level, node to_node, allocator* _allocator)
     {
         if (level == 0)
             return to_node;
         internal_node new_node = make_internal(_allocator);
-        new_node->children[0] = new_path(level - bits, to_node);
+        new_node->children[0] = new_path(level - bits, to_node, _allocator);
         return new_node;
     }
 
@@ -353,7 +355,7 @@ struct pvec
             if (child) {
                 to_insert = push_tail(level - bits, child, tail);
             } else {
-                to_insert = new_path(level - bits, tail);
+                to_insert = new_path(level - bits, tail, _allocator);
             }
         }
         ret->children[subidx] = to_insert;
@@ -431,7 +433,7 @@ struct pvec
                 newroot = make_internal(_allocator);
 
                 newroot->children[0] = root;
-                newroot->children[1] = new_path(shift, tail);
+                newroot->children[1] = new_path(shift, tail, _allocator);
 
                 newshift += 5;
 
@@ -569,9 +571,107 @@ struct pvec
 
 	    disable_edit();
 	    leaf_node trimmed_tail = make_leaf(_allocator);
-	    std::copy(tail->values.begin(), tail->values.begin() + (count - tail_offset()), trimmed_tail->begin());
-	    return {count, shift, root, trimmed_tail};
+	    std::copy(tail->values.begin(), tail->values.begin() + (count - tail_offset()), trimmed_tail->values.begin());
+	    trimmed_tail->count = tail->count;
+	    return {count, shift, root, trimmed_tail, _allocator};
 	}
+
+	tvec& conj(T item)
+	{
+	    ensure_editable();
+
+	    size_t i = count;
+
+	    if (i - tail_offset() < width) {
+		tail->values[i & index_mask] = item;
+		++tail->count;
+		++this->count;
+		return *this;
+	    }
+
+	    internal_node newroot;
+	    leaf_node tailnode = make_leaf(_allocator);
+	    tail = make_leaf(_allocator);
+	    tail->values[0] = item;
+
+	    size_t newshift = shift;
+
+	    if ((count >> bits) > (1 << shift)) {
+		newroot = make_internal(_allocator);
+		newroot->children[0] = root;
+		newroot->children[1] = new_path(shift, tailnode,_allocator);
+		newroot->count = 2;
+		newshift += 5;
+	    }
+	    else {
+		newroot = push_tail(shift, root, tailnode);
+	    }
+	    root = newroot;
+	    shift = newshift;
+	    ++count;
+	    return *this;
+	}
+
+	tvec& assoc(key_type key, const T& item)
+	{
+	    return assoc_n(key, item);
+	}
+
+	tvec& assoc_n(key_type i, const T& item) {
+	    if (i < count) {
+		if (i >= tail_offset()) {
+		    tail->values[i & index_mask] = item;
+		    return *this;
+		}
+		root = std::static_pointer_cast<internal_node_t>(do_assoc(shift, root, i, item));
+		return *this;
+	    }
+	    if (i == count) {
+		return conj(item);
+	    }
+	    throw std::runtime_error("Index not found in transient vector!");
+	}
+
+	node do_assoc(size_t level, node node, size_t i, const T& item) {
+	    if (level == 0) {
+		leaf_node nodeptr = std::static_pointer_cast<leaf_node_t>(node);
+		nodeptr->values[i & index_mask] = item;
+	    }
+	    else {
+		size_t subidx = (i >> level) & index_mask;
+		internal_node nodeptr = std::static_pointer_cast<internal_node_t>(node);
+		nodeptr->children[subidx] = do_assoc(level - bits, nodeptr->children[subidx], i, item);
+	    }
+	    return node;
+	}
+
+	internal_node push_tail(size_t level, internal_node parent, leaf_node tailnode)
+	{
+	    ensure_editable();
+
+	    size_t subidx = ((count - 1) >> level) & index_mask;
+	    internal_node ret = parent;
+	    node to_insert;
+	    if (level == bits) {
+		to_insert = tail;
+	    }
+	    else {
+		assert(parent->type == node_type::internal);
+		internal_node child = std::static_pointer_cast<internal_node_t>(
+		    parent->children[subidx]);
+
+		if (child) {
+		    to_insert = push_tail(level - bits, child, tailnode);
+		}
+		else {
+		    to_insert = new_path(level - bits, tailnode, _allocator);
+		}
+	    }
+	    ret->children[subidx] = to_insert;
+	    return ret;
+	}
+
+
 	
     };
 

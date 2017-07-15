@@ -70,7 +70,11 @@ int main( // int argc, char** argv
 
   auto tvec1 = pvec3.as_transient();
 
+  tvec1.conj({11,11,11}).conj({22,22,22}).conj({33,33,33});
 
+  tvec1.assoc(3, {55,55,55});
+
+  auto ptvec = tvec1.to_persistent();
 
   plist<A, myalloc> plist1 = create_plist<A>(&allocator, {{1,1,1}, {2,2,2}, {3,3,3}});
 
@@ -85,6 +89,7 @@ int main( // int argc, char** argv
   cout << pvec1 << endl;
   cout << pvec2 << endl;
   cout << pvec3 << endl;
+  cout << ptvec << endl;
 
   cout << plist1 << endl;
   cout << plist2 << endl;
