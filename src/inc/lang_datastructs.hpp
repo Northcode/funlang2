@@ -1,9 +1,11 @@
 #ifndef DATASTRUCTS_H
 #define DATASTRUCTS_H
 
+#include <atomic>
 #include <experimental/optional>
 #include <iostream>
 #include <memory>
+#include <thread>
 
 #include "allocator_base.hpp"
 
@@ -162,23 +164,24 @@ struct pvec
 
         node_type type;
         size_t count = 0;
+        std::thread::id editing_thread;
 
         friend std::ostream& operator<<(std::ostream& stream, node_t& data)
         {
             if (data.type == node_type::leaf) {
                 leaf_node_t* nodeptr = (leaf_node_t*)&data;
-		assert(nodeptr);
+                assert(nodeptr);
                 for (key_type i = 0; i < nodeptr->count; i++) {
                     stream << nodeptr->values[i] << " ";
                 }
             } else {
                 internal_node_t* nodeptr = (internal_node_t*)&data;
-		assert(nodeptr);
-		for (key_type i = 0; i < nodeptr->count; ++i) {
-		    assert(nodeptr->children[i]);
-		    stream << *(nodeptr->children[i]) << " ";
-		}
-	    }
+                assert(nodeptr);
+                for (key_type i = 0; i < nodeptr->count; ++i) {
+                    assert(nodeptr->children[i]);
+                    stream << *(nodeptr->children[i]) << " ";
+                }
+            }
             return stream;
         }
     };
@@ -258,12 +261,12 @@ struct pvec
 
     static pvec create(allocator* allocator, std::initializer_list<T> list)
     {
-	tvec res{ allocator };
-	for (auto& item : list) {
-	    res.conj(item);
+        tvec res{ allocator };
+        for (auto& item : list) {
+            res.conj(item);
         }
-	pvec result = res.to_persistent();
-	return result;
+        pvec result = res.to_persistent();
+        return result;
     }
 
     static leaf_node copy_leaf(allocator* _allocator, const leaf_node& node)
@@ -274,7 +277,8 @@ struct pvec
         return newnode;
     }
 
-    static internal_node copy_internal(allocator* _allocator, const internal_node& node)
+    static internal_node copy_internal(allocator* _allocator,
+                                       const internal_node& node)
     {
         internal_node newnode = make_internal(_allocator);
         newnode->children = node->children;
@@ -282,7 +286,8 @@ struct pvec
         return newnode;
     }
 
-    static inline internal_node copy_internal(allocator* _allocator, const node& node)
+    static inline internal_node copy_internal(allocator* _allocator,
+                                              const node& node)
     {
         internal_node casted = std::static_pointer_cast<internal_node_t>(node);
         return copy_internal(_allocator, casted);
@@ -528,164 +533,194 @@ struct pvec
         return stream << "]";
     }
 
+    struct tvec
+    {
+        size_t count;
+        size_t shift;
+        internal_node root;
+        leaf_node tail;
 
-    struct tvec {
-	size_t count;
-	size_t shift;
-	internal_node root;
-	leaf_node tail;
+        allocator* _allocator;
 
-	allocator* _allocator;
+        tvec(size_t count,
+             size_t shift,
+             internal_node root,
+             leaf_node tail,
+             allocator* _allocator)
+          : count(count)
+          , shift(shift)
+          , root(root)
+          , tail(tail)
+          , _allocator(_allocator)
+        {
+            enable_editing_from_current_thread(root);
+        }
 
-	tvec(size_t count, size_t shift, internal_node root, leaf_node tail, allocator* _allocator)
-	    : count(count)
-	    , shift(shift)
-	    , root(root)
-	    , tail(tail)
-	    , _allocator(_allocator)
-	{}
+        tvec(allocator* _allocator)
+          : tvec(0,
+                 bits,
+                 make_internal(_allocator),
+                 make_leaf(_allocator),
+                 _allocator)
+        {
+        }
 
-	tvec(allocator* _allocator)
-	    : tvec(0, bits, make_internal(_allocator), make_leaf(_allocator), _allocator)
-	{}
-	     
+        tvec(const pvec& v)
+          : tvec(v.count,
+                 v.shift,
+                 copy_internal(v._allocator, v.root),
+                 copy_leaf(v._allocator, v.tail),
+                 v._allocator)
+        {
+        }
 
-	tvec(const pvec& v) : tvec(v.count, v.shift, copy_internal(v._allocator,v.root), copy_leaf(v._allocator,v.tail), v._allocator)
-	{}
+        static void enable_editing_from_current_thread(node n)
+        {
+            n->editing_thread = std::this_thread::get_id();
+        }
 
-	void ensure_editable()
-	{
-	    // assert some atomic bool 
-	}
+        void ensure_editable() { ensure_editable(root); }
 
-	void disable_edit()
-	{
-	    // set editable bool to false
-	}
-
-	size_t tail_offset() const
-	{
-	    if (count < width) {
-		return 0;
+        void ensure_editable(node n)
+        {
+            assert(n);
+            auto curthrd = std::this_thread::get_id();
+            auto nthrd = n->editing_thread;
+	    if (nthrd == std::thread::id{0}) {
+		std::cout << "Editing for node is disabled!\n";
+		abort();
 	    }
-	    return ((count - 1) >> bits) << 5;
-	}
+            if (curthrd != nthrd) {
+                std::cout << "Tried editing from " << curthrd
+                          << " editing only allowed from thread: " << nthrd
+                          << "\n";
+                abort();
+            }
+            assert(n->editing_thread == std::this_thread::get_id());
+        }
 
-	pvec to_persistent()
-	{
-	    ensure_editable();
+        void disable_edit() { root->editing_thread = 0; }
 
-	    disable_edit();
-	    leaf_node trimmed_tail = make_leaf(_allocator);
-	    std::copy(tail->values.begin(), tail->values.begin() + (count - tail_offset()), trimmed_tail->values.begin());
-	    trimmed_tail->count = tail->count;
-	    return {count, shift, root, trimmed_tail, _allocator};
-	}
+        size_t tail_offset() const
+        {
+            if (count < width) {
+                return 0;
+            }
+            return ((count - 1) >> bits) << 5;
+        }
 
-	tvec& conj(T item)
-	{
-	    ensure_editable();
+        pvec to_persistent()
+        {
+            ensure_editable();
 
-	    size_t i = count;
+            disable_edit();
+            leaf_node trimmed_tail = make_leaf(_allocator);
+            std::copy(tail->values.begin(),
+                      tail->values.begin() + (count - tail_offset()),
+                      trimmed_tail->values.begin());
+            trimmed_tail->count = tail->count;
+            return { count, shift, root, trimmed_tail, _allocator };
+        }
 
-	    if (i - tail_offset() < width) {
-		tail->values[i & index_mask] = item;
-		++tail->count;
-		++this->count;
-		return *this;
-	    }
+        tvec& conj(T item)
+        {
+            ensure_editable();
 
-	    internal_node newroot;
-	    leaf_node tailnode = make_leaf(_allocator);
-	    tail = make_leaf(_allocator);
-	    tail->values[0] = item;
+            size_t i = count;
 
-	    size_t newshift = shift;
+            if (i - tail_offset() < width) {
+                tail->values[i & index_mask] = item;
+                ++tail->count;
+                ++this->count;
+                return *this;
+            }
 
-	    if ((count >> bits) > (1 << shift)) {
-		newroot = make_internal(_allocator);
-		newroot->children[0] = root;
-		newroot->children[1] = new_path(shift, tailnode,_allocator);
-		newroot->count = 2;
-		newshift += 5;
-	    }
-	    else {
-		newroot = push_tail(shift, root, tailnode);
-	    }
-	    root = newroot;
-	    shift = newshift;
-	    ++count;
-	    return *this;
-	}
+            internal_node newroot;
+            leaf_node tailnode = make_leaf(_allocator);
+            tail = make_leaf(_allocator);
+            tail->values[0] = item;
 
-	tvec& assoc(key_type key, const T& item)
-	{
-	    return assoc_n(key, item);
-	}
+            size_t newshift = shift;
 
-	tvec& assoc_n(key_type i, const T& item) {
-	    if (i < count) {
-		if (i >= tail_offset()) {
-		    tail->values[i & index_mask] = item;
-		    return *this;
-		}
-		root = std::static_pointer_cast<internal_node_t>(do_assoc(shift, root, i, item));
-		return *this;
-	    }
-	    if (i == count) {
-		return conj(item);
-	    }
-	    throw std::runtime_error("Index not found in transient vector!");
-	}
+            if ((count >> bits) > (1 << shift)) {
+                newroot = make_internal(_allocator);
+                newroot->children[0] = root;
+                newroot->children[1] = new_path(shift, tailnode, _allocator);
+                newroot->count = 2;
+                newshift += 5;
+            } else {
+                newroot = push_tail(shift, root, tailnode);
+            }
+	    root->editing_thread = std::thread::id{0};
+            root = newroot;
+	    enable_editing_from_current_thread(root);
+            shift = newshift;
+            ++count;
+            return *this;
+        }
 
-	node do_assoc(size_t level, node node, size_t i, const T& item) {
-	    if (level == 0) {
-		leaf_node nodeptr = std::static_pointer_cast<leaf_node_t>(node);
-		nodeptr->values[i & index_mask] = item;
-	    }
-	    else {
-		size_t subidx = (i >> level) & index_mask;
-		internal_node nodeptr = std::static_pointer_cast<internal_node_t>(node);
-		nodeptr->children[subidx] = do_assoc(level - bits, nodeptr->children[subidx], i, item);
-	    }
-	    return node;
-	}
+        tvec& assoc(key_type key, const T& item) { return assoc_n(key, item); }
 
-	internal_node push_tail(size_t level, internal_node parent, leaf_node tailnode)
-	{
-	    ensure_editable();
+        tvec& assoc_n(key_type i, const T& item)
+        {
+            if (i < count) {
+                if (i >= tail_offset()) {
+                    tail->values[i & index_mask] = item;
+                    return *this;
+                }
+                root = std::static_pointer_cast<internal_node_t>(
+                  do_assoc(shift, root, i, item));
+                return *this;
+            }
+            if (i == count) {
+                return conj(item);
+            }
+            throw std::runtime_error("Index not found in transient vector!");
+        }
 
-	    size_t subidx = ((count - 1) >> level) & index_mask;
-	    internal_node ret = parent;
-	    node to_insert;
-	    if (level == bits) {
-		to_insert = tail;
-	    }
-	    else {
-		assert(parent->type == node_type::internal);
-		internal_node child = std::static_pointer_cast<internal_node_t>(
-		    parent->children[subidx]);
+        node do_assoc(size_t level, node node, size_t i, const T& item)
+        {
+            if (level == 0) {
+                leaf_node nodeptr = std::static_pointer_cast<leaf_node_t>(node);
+                nodeptr->values[i & index_mask] = item;
+            } else {
+                size_t subidx = (i >> level) & index_mask;
+                internal_node nodeptr =
+                  std::static_pointer_cast<internal_node_t>(node);
+                nodeptr->children[subidx] =
+                  do_assoc(level - bits, nodeptr->children[subidx], i, item);
+            }
+            return node;
+        }
 
-		if (child) {
-		    to_insert = push_tail(level - bits, child, tailnode);
-		}
-		else {
-		    to_insert = new_path(level - bits, tailnode, _allocator);
-		}
-	    }
-	    ret->children[subidx] = to_insert;
-	    return ret;
-	}
+        internal_node push_tail(size_t level,
+                                internal_node parent,
+                                leaf_node tailnode)
+        {
+            ensure_editable();
 
+            size_t subidx = ((count - 1) >> level) & index_mask;
+            internal_node ret = parent;
+            node to_insert;
+            if (level == bits) {
+                to_insert = tail;
+            } else {
+                assert(parent->type == node_type::internal);
+                internal_node child = std::static_pointer_cast<internal_node_t>(
+                  parent->children[subidx]);
 
-	
+                if (child) {
+                    to_insert = push_tail(level - bits, child, tailnode);
+                } else {
+                    to_insert = new_path(level - bits, tailnode, _allocator);
+                }
+            }
+            ret->children[subidx] = to_insert;
+            return ret;
+        }
     };
 
-
-    tvec as_transient()
-    {
-	return {*this};
-    }
+    tvec as_transient() { return { *this }; }
 };
 
 #endif

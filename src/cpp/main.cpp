@@ -57,40 +57,51 @@ int main( // int argc, char** argv
 
   myalloc allocator;
 
-  std::unique_ptr<A, alb::deleter<myalloc>> Auptr = alb::make_unique<A>(allocator, 1, 2, 3);
-  std::shared_ptr<A> Asptr = alb::make_shared<A>(allocator, 2, 3, 4);
 
-  pvec<A, myalloc> pvec1{&allocator};
+  pvec<A, myalloc>::tvec pvecA{&allocator};
 
-  pvec1 = pvec1.conj({0,1,1}).conj({0,2,2});
+  for (int i = 0; i < 1000000; ++i) {
+    pvecA = pvecA.conj({i,i,i});
+  }
 
-  auto pvec2 = pvec<A, myalloc>::create(&allocator, {{0,1,1},{0,1,2},{0,1,3},{0,1,4}});
 
-  auto pvec3 = pvec2.pop();
+  // pvec<A, myalloc>::tvec tvecB{&allocator};
 
-  auto tvec1 = pvec3.as_transient();
 
-  tvec1.conj({11,11,11}).conj({22,22,22}).conj({33,33,33});
+  // std::unique_ptr<A, alb::deleter<myalloc>> Auptr = alb::make_unique<A>(allocator, 1, 2, 3);
+  // std::shared_ptr<A> Asptr = alb::make_shared<A>(allocator, 2, 3, 4);
 
-  tvec1.assoc(3, {55,55,55});
+  // pvec<A, myalloc> pvec1{&allocator};
 
-  auto ptvec = tvec1.to_persistent();
+  // pvec1 = pvec1.conj({0,1,1}).conj({0,2,2});
 
-  plist<A, myalloc> plist1 = create_plist<A>(&allocator, {{1,1,1}, {2,2,2}, {3,3,3}});
+  // auto pvec2 = pvec<A, myalloc>::create(&allocator, {{0,1,1},{0,1,2},{0,1,3},{0,1,4}});
 
-  plist1 = plist1.conj({0,1,1}).conj({0,2,2});
+  // auto pvec3 = pvec2.pop();
 
-  auto plist2 = plist1.pop();
+  // auto tvec1 = pvec3.as_transient();
 
-  auto plist3 = plist2.conj({3,4,5});
+  // tvec1.conj({11,11,11}).conj({22,22,22}).conj({33,33,33});
 
-  cout << pvec1 << endl;
-  cout << pvec2 << endl;
-  cout << pvec3 << endl;
-  cout << ptvec << endl;
+  // tvec1.assoc(3, {55,55,55});
 
-  cout << plist1 << endl;
-  cout << plist2 << endl;
+  // auto ptvec = tvec1.to_persistent();
+
+  // plist<A, myalloc> plist1 = create_plist<A>(&allocator, {{1,1,1}, {2,2,2}, {3,3,3}});
+
+  // plist1 = plist1.conj({0,1,1}).conj({0,2,2});
+
+  // auto plist2 = plist1.pop();
+
+  // auto plist3 = plist2.conj({3,4,5});
+
+  // cout << pvec1 << endl;
+  // cout << pvec2 << endl;
+  // cout << pvec3 << endl;
+  // cout << ptvec << endl;
+
+  // cout << plist1 << endl;
+  // cout << plist2 << endl;
 
   return 0;
 }
