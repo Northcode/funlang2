@@ -164,7 +164,8 @@ struct pvec
 
         node_type type;
         size_t count = 0;
-        std::thread::id editing_thread;
+        // std::thread::id editing_thread;
+        size_t editing_thread;
 
         friend std::ostream& operator<<(std::ostream& stream, node_t& data)
         {
@@ -179,7 +180,7 @@ struct pvec
                 assert(nodeptr);
                 for (key_type i = 0; i < nodeptr->count; ++i) {
                     assert(nodeptr->children[i]);
-                    stream << *(nodeptr->children[i]) << " ";
+                    stream << *(nodeptr->children[i]);
                 }
             }
             return stream;
@@ -325,12 +326,14 @@ struct pvec
 
     const T& nth(key_type key)
     {
-        leaf_node lookup_node;
-        if (this->tail && (this->count - tail_offset() < width)) {
-            lookup_node = this->tail;
-        } else {
-            lookup_node = std::static_pointer_cast<leaf_node_t>(node_for(key));
-        }
+        leaf_node lookup_node =
+          std::static_pointer_cast<leaf_node_t>(node_for(key));
+        // if (this->tail && (this->count - tail_offset() < width)) {
+        //     lookup_node = this->tail;
+        // } else {
+        //     lookup_node =
+        //     std::static_pointer_cast<leaf_node_t>(node_for(key));
+        // }
         assert(lookup_node);
         // if (! lookup_node); // @TODO: handle error here sometime plz
 
@@ -576,7 +579,9 @@ struct pvec
 
         static void enable_editing_from_current_thread(node n)
         {
-            n->editing_thread = std::this_thread::get_id();
+            // n->editing_thread = std::this_thread::get_id();
+            n->editing_thread =
+              std::hash<std::thread::id>()(std::this_thread::get_id());
         }
 
         void ensure_editable() { ensure_editable(root); }
@@ -584,19 +589,20 @@ struct pvec
         void ensure_editable(node n)
         {
             assert(n);
-            auto curthrd = std::this_thread::get_id();
+            auto curthrd =
+              std::hash<std::thread::id>()(std::this_thread::get_id());
             auto nthrd = n->editing_thread;
-	    if (nthrd == std::thread::id{0}) {
-		std::cout << "Editing for node is disabled!\n";
-		abort();
-	    }
+            if (nthrd == 0) {
+                std::cout << "Editing for node is disabled!\n";
+                abort();
+            }
             if (curthrd != nthrd) {
                 std::cout << "Tried editing from " << curthrd
                           << " editing only allowed from thread: " << nthrd
                           << "\n";
                 abort();
             }
-            assert(n->editing_thread == std::this_thread::get_id());
+            assert(n->editing_thread == curthrd);
         }
 
         void disable_edit() { root->editing_thread = 0; }
@@ -628,6 +634,7 @@ struct pvec
 
             size_t i = count;
 
+            // room in tail?
             if (i - tail_offset() < width) {
                 tail->values[i & index_mask] = item;
                 ++tail->count;
@@ -635,25 +642,27 @@ struct pvec
                 return *this;
             }
 
+            // full tail, push into tree
             internal_node newroot;
-            leaf_node tailnode = make_leaf(_allocator);
+            leaf_node old_tail = tail;
             tail = make_leaf(_allocator);
             tail->values[0] = item;
 
             size_t newshift = shift;
 
-            if ((count >> bits) > (1 << shift)) {
+            // check root full
+            if ((count >> bits) > (1u << shift)) {
                 newroot = make_internal(_allocator);
                 newroot->children[0] = root;
-                newroot->children[1] = new_path(shift, tailnode, _allocator);
+                newroot->children[1] = new_path(shift, old_tail, _allocator);
                 newroot->count = 2;
                 newshift += 5;
             } else {
-                newroot = push_tail(shift, root, tailnode);
+                newroot = push_tail(shift, root, old_tail);
             }
-	    root->editing_thread = std::thread::id{0};
+            root->editing_thread = 0;
             root = newroot;
-	    enable_editing_from_current_thread(root);
+            enable_editing_from_current_thread(root);
             shift = newshift;
             ++count;
             return *this;
@@ -703,7 +712,7 @@ struct pvec
             internal_node ret = parent;
             node to_insert;
             if (level == bits) {
-                to_insert = tail;
+                to_insert = tailnode;
             } else {
                 assert(parent->type == node_type::internal);
                 internal_node child = std::static_pointer_cast<internal_node_t>(
@@ -716,6 +725,7 @@ struct pvec
                 }
             }
             ret->children[subidx] = to_insert;
+            ++ret->count;
             return ret;
         }
     };
