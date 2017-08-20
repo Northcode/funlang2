@@ -303,6 +303,9 @@ struct pvec
     node node_for(key_type key)
     {
         if (key < this->count) {
+	  if (key >= tail_offset()) {
+                return tail;
+            }
             node curr_node = this->root;
             for (size_t level = this->shift; level > 0; level -= bits) {
                 internal_node tmp =
