@@ -15,7 +15,6 @@
 
 using namespace std;
 
-
 // * A struct
 struct A
 {
@@ -77,17 +76,38 @@ int main( // int argc, char** argv
     //     pvecA = pvecA.conj({ i, i, i });
     // }
 
-    auto rvec = pv_range<size_t>(&allocator, 0, 40);
+    auto rvec = pv_range<size_t>(&allocator, 100, 200);
 
     decltype(rvec)::key_type key = 0;
 
+    int a = 1 + 1;
+
+    cout << a << endl;
+
     cout << rvec << endl;
 
-    while (true) {
-        cout << "Lookup key: ";
-        cin >> key;
+    std::string command;
 
-        cout << rvec.nth(key) << endl;
+    while (true) {
+        cout << "> ";
+        cin >> command;
+
+        if (command == "lookup" || command == "l") {
+            cout << "Lookup key: ";
+            cin >> key;
+
+            cout << rvec.nth(key) << endl;
+        } else if (command == "push" || command == "p") {
+            cout << "push value:";
+            size_t val = 0;
+            cin >> val;
+
+            rvec = rvec.conj(val);
+        } else if (command == "view" || command == "v") {
+            cout << rvec << endl;
+        } else if (command == "quit" || command == "q") {
+            break;
+        }
     }
 
     // pvec<A, myalloc>::tvec tvecB{&allocator};
