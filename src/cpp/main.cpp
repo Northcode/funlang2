@@ -65,7 +65,6 @@ pv_range(Alloc* _allc, T from, T to)
 int main( // int argc, char** argv
   )
 {
-
     using myalloc = alb::affix_allocator<alb::mallocator, size_t>;
 
     myalloc allocator;
@@ -80,13 +79,9 @@ int main( // int argc, char** argv
 
     decltype(rvec)::key_type key = 0;
 
-    int a = 1 + 1;
-
-    cout << a << endl;
-
     cout << rvec << endl;
 
-    std::string command;
+    string command;
 
     while (true) {
         cout << "> ";
@@ -96,7 +91,11 @@ int main( // int argc, char** argv
             cout << "Lookup key: ";
             cin >> key;
 
-            cout << rvec.nth(key) << endl;
+            if (rvec.key_exists(key)) {
+                cout << rvec.nth(key) << endl;
+            } else {
+                cout << "Key is not in vector" << endl;
+            }
         } else if (command == "push" || command == "p") {
             cout << "push value:";
             size_t val = 0;

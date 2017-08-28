@@ -303,7 +303,7 @@ struct pvec
     node node_for(key_type key)
     {
         if (key < this->count) {
-	  if (key >= tail_offset()) {
+            if (key >= tail_offset()) {
                 return tail;
             }
             node curr_node = this->root;
@@ -327,20 +327,33 @@ struct pvec
         }
     }
 
+    const T& nth(key_type key, const T& not_found)
+    {
+        leaf_node lookup_node =
+          std::static_pointer_cast<leaf_node_t>(node_for(key));
+
+        if (!lookup_node) {
+            return not_found;
+        } else {
+            return lookup_node->values[key & index_mask];
+        }
+    }
+
     const T& nth(key_type key)
     {
         leaf_node lookup_node =
           std::static_pointer_cast<leaf_node_t>(node_for(key));
-        // if (this->tail && (this->count - tail_offset() < width)) {
-        //     lookup_node = this->tail;
-        // } else {
-        //     lookup_node =
-        //     std::static_pointer_cast<leaf_node_t>(node_for(key));
-        // }
         assert(lookup_node);
-        // if (! lookup_node); // @TODO: handle error here sometime plz
 
         return lookup_node->values[key & index_mask];
+    }
+
+    bool key_exists(key_type key)
+    {
+        leaf_node lookup_node =
+          std::static_pointer_cast<leaf_node_t>(node_for(key));
+
+        return static_cast<bool>(lookup_node);
     }
 
     static node new_path(size_t level, node to_node, allocator* _allocator)
